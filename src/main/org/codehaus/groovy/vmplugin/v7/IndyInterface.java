@@ -16,7 +16,6 @@
 package org.codehaus.groovy.vmplugin.v7;
 
 import groovy.lang.AdaptingMetaClass;
-import groovy.lang.GString;
 import groovy.lang.GroovyObject;
 import groovy.lang.GroovyRuntimeException;
 import groovy.lang.GroovySystem;
@@ -33,12 +32,15 @@ import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.math.BigInteger;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.codehaus.groovy.GroovyBugError;
 import org.codehaus.groovy.reflection.CachedMethod;
+import org.codehaus.groovy.runtime.GroovyCategorySupport;
 import org.codehaus.groovy.runtime.NullObject;
 import org.codehaus.groovy.runtime.ScriptBytecodeAdapter;
+import org.codehaus.groovy.runtime.dgmimpl.NumberNumberMetaMethod;
 import org.codehaus.groovy.runtime.metaclass.MetaClassRegistryImpl;
 import org.codehaus.groovy.runtime.metaclass.MissingMethodExecutionFailed;
 import org.codehaus.groovy.runtime.metaclass.NewInstanceMetaMethod;
@@ -51,7 +53,17 @@ import org.codehaus.groovy.runtime.wrappers.Wrapper;
  * @author <a href="mailto:blackdrag@gmx.org">Jochen "blackdrag" Theodorou</a>
  */
 public class IndyInterface {
-    
+        private final static Logger LOG;
+        private final static boolean LOG_ENABLED;
+        static {
+            LOG = Logger.getLogger(IndyInterface.class.getName());
+            if (System.getProperty("groovy.indy.logging")!=null) {
+                LOG.setLevel(Level.ALL);
+                LOG_ENABLED = true;
+            } else {
+                LOG_ENABLED = false;
+            }
+        }
     /*
      * notes:
      *      MethodHandles#dropArguments: 
@@ -77,16 +89,14 @@ public class IndyInterface {
         private static final MethodType INVOKE_METHOD_SIGNATURE = MethodType.methodType(Object.class, Class.class, Object.class, String.class, Object[].class, boolean.class, boolean.class);
         private static final MethodType O2O = MethodType.methodType(Object.class, Object.class);
         private static final MethodHandle   
-            UNWRAP_METHOD,  TO_STRING,          TO_BYTE,        
-            TO_BIGINT,      SAME_MC,            IS_NULL,
+            UNWRAP_METHOD,  SAME_MC,            IS_NULL,
             IS_NOT_NULL,    UNWRAP_EXCEPTION,   SAME_CLASS,
-            META_METHOD_INVOKER,    GROOVY_OBJECT_INVOKER;
+            META_METHOD_INVOKER,    GROOVY_OBJECT_INVOKER,
+            HAS_CATEGORY_IN_CURRENT_THREAD_GUARD,
+            NEGATE_BOOL;
         static {
             try {
                 UNWRAP_METHOD = LOOKUP.findStatic(IndyInterface.class, "unwrap", O2O);
-                TO_STRING = LOOKUP.findStatic(IndyInterface.class, "coerceToString", MethodType.methodType(String.class, Object.class));
-                TO_BYTE = LOOKUP.findStatic(IndyInterface.class, "coerceToByte", O2O);
-                TO_BIGINT = LOOKUP.findStatic(IndyInterface.class, "coerceToBigInt", O2O);
                 SAME_MC = LOOKUP.findStatic(IndyInterface.class, "isSameMetaClass", MethodType.methodType(boolean.class, MetaClass.class, Object.class));
                 IS_NULL = LOOKUP.findStatic(IndyInterface.class, "isNull", MethodType.methodType(boolean.class, Object.class));
                 IS_NOT_NULL = LOOKUP.findStatic(IndyInterface.class, "isNotNull", MethodType.methodType(boolean.class, Object.class));
@@ -94,6 +104,8 @@ public class IndyInterface {
                 SAME_CLASS = LOOKUP.findStatic(IndyInterface.class, "sameClass", MethodType.methodType(boolean.class, Class.class, Object.class));
                 META_METHOD_INVOKER = LOOKUP.findVirtual(MetaMethod.class, "invoke", GENERAL_INVOKER_SIGNATURE);
                 GROOVY_OBJECT_INVOKER = LOOKUP.findStatic(IndyInterface.class, "invokeGroovyObjectInvoker", MethodType.methodType(Object.class, MissingMethodException.class, Object.class, String.class, Object[].class));
+                HAS_CATEGORY_IN_CURRENT_THREAD_GUARD = LOOKUP.findStatic(GroovyCategorySupport.class, "hasCategoryInCurrentThread", MethodType.methodType(boolean.class));
+                NEGATE_BOOL = LOOKUP.findStatic(IndyInterface.class, "negateBool", MethodType.methodType(boolean.class,boolean.class));
             } catch (Exception e) {
                 throw new GroovyBugError(e);
             }
@@ -104,13 +116,19 @@ public class IndyInterface {
         static {
             GroovySystem.getMetaClassRegistry().addMetaClassRegistryChangeEventListener(new MetaClassRegistryChangeEventListener() {
                 public void updateConstantMetaClass(MetaClassRegistryChangeEvent cmcu) {
-                    SwitchPoint old = switchPoint;
-                    switchPoint = new SwitchPoint();
-                    synchronized(this) { SwitchPoint.invalidateAll(new SwitchPoint[]{old}); }
+                	invalidateSwitchPoints();
                 }
             });
         }
 
+        protected static void invalidateSwitchPoints() {
+            if (LOG_ENABLED) {
+                 LOG.info("invalidating switch point");
+            }
+        	SwitchPoint old = switchPoint;
+            switchPoint = new SwitchPoint();
+            synchronized(IndyInterface.class) { SwitchPoint.invalidateAll(new SwitchPoint[]{old}); }
+        }
         
         // the entry points from bytecode
         
@@ -150,7 +168,7 @@ public class IndyInterface {
             MutableCallSite mc = new MutableCallSite(type);
             MethodHandle mh = makeFallBack(mc,caller.lookupClass(),name,type,safe,thisCall);
             mc.setTarget(mh);
-            return mc;            
+            return mc;
         }
         
         /**
@@ -161,16 +179,6 @@ public class IndyInterface {
             mh =    mh.asCollector(Object[].class, type.parameterCount()).
                     asType(type);
             return mh;
-        }
-
-        /**
-         * Gets the class of an object.
-         * In case the object is a Class it will return the object itself,
-         * otherwise it will return the getClass() result of it.
-         */
-        private static Class getClass(Object x) {
-            if (x instanceof Class) return (Class) x;
-            return x.getClass();
         }
         
         /**
@@ -184,21 +192,6 @@ public class IndyInterface {
             } else {
                 return ((MetaClassRegistryImpl) GroovySystem.getMetaClassRegistry()).getMetaClass(receiver);
             }
-        }
-        
-        private static class CallInfo {
-            public Object[] args;
-            public MetaMethod method;
-            public MethodType targetType;
-            public String methodName;
-            public MethodHandle handle;
-            public boolean useMetaClass = false;
-            public MutableCallSite callSite;
-            public Class sender;
-            public boolean isVargs;
-            public boolean safeNavigation, safeNavigationOrig;
-            public boolean thisCall;
-            public Class methodSelectionBase;
         }
         
         /**
@@ -218,19 +211,33 @@ public class IndyInterface {
          */
         private static void setHandleForMetaMethod(CallInfo info) {
             MetaMethod metaMethod = info.method;
+
+            if (metaMethod instanceof NumberNumberMetaMethod) {
+            	if (LOG_ENABLED) LOG.info("meta method is number method");
+                info.catchException = false;
+                if (IndyMath.chooseMathMethod(info, metaMethod)) {
+                    if (LOG_ENABLED) LOG.info("indy math successfull");
+                    return;
+                }
+            }
+            
             boolean isCategoryTypeMethod = metaMethod instanceof NewInstanceMetaMethod;
+            if (LOG_ENABLED) LOG.info("meta method is category type method: "+isCategoryTypeMethod);
             
             if (metaMethod instanceof ReflectionMetaMethod) {
+                if (LOG_ENABLED) LOG.info("meta method is reflective method");
                 ReflectionMetaMethod rmm = (ReflectionMetaMethod) metaMethod;
                 metaMethod = rmm.getCachedMethod();
             }
             
             if (metaMethod instanceof CachedMethod) {
+                if (LOG_ENABLED) LOG.info("meta method is CachedMethod instance");
                 CachedMethod cm = (CachedMethod) metaMethod;
                 info.isVargs = cm.isVargsMethod();
                 try {
                     Method m = cm.getCachedMethod();
                     info.handle = LOOKUP.unreflect(m);
+                    if (LOG_ENABLED) LOG.info("successfully unreflected");
                     if (!isCategoryTypeMethod && isStatic(m)) {
                         info.handle = MethodHandles.dropArguments(info.handle, 0, Class.class);
                     }
@@ -238,9 +245,11 @@ public class IndyInterface {
                     throw new GroovyBugError(e);
                 }
             } else if (info.method != null) {
+                if (LOG_ENABLED) LOG.info("meta method is dgm helper");
                 // dgm method helper path
                 info.handle = META_METHOD_INVOKER;
                 info.handle = info.handle.bindTo(info.method);
+                if (LOG_ENABLED) LOG.info("bound method name to META_METHOD_INVOKER");
                 if (info.method.getNativeParameterTypes().length==1 && 
                     info.args.length==1) 
                 {
@@ -252,12 +261,19 @@ public class IndyInterface {
                     // we need to wrap the array that represents our argument in
                     // another one for the vargs call
                     info.handle = MethodHandles.insertArguments(info.handle, 1, new Object[]{new Object[]{null}});
+                    if (LOG_ENABLED) LOG.info("null argument expansion");
                 } else if (info.method.isVargsMethod()) {
                     // the method expects the arguments as Object[] in a Object[]
                     info.handle = info.handle.asCollector(Object[].class, 1);
                     info.handle = info.handle.asCollector(Object[].class, info.targetType.parameterCount()-1);
+                    info.currentType = MethodType.methodType(info.method.getReturnType(), info.method.getNativeParameterTypes());
+                    info.currentType = info.currentType.insertParameterTypes(0, info.method.getDeclaringClass().getTheClass());
+                    if (LOG_ENABLED) LOG.info("wrapping vargs for dgm helper");
                 } else {
                     info.handle = info.handle.asCollector(Object[].class, info.targetType.parameterCount()-1);
+                    info.currentType = MethodType.methodType(info.method.getReturnType(), info.method.getNativeParameterTypes());
+                    info.currentType = info.currentType.insertParameterTypes(0, info.method.getDeclaringClass().getTheClass());
+                    if (LOG_ENABLED) LOG.info("normal dgm helper wrapping");
                 }
             }
         }
@@ -268,19 +284,26 @@ public class IndyInterface {
          * or the meta class is an AdaptingMetaClass.
          */
         private static void chooseMethod(MetaClass mc, CallInfo ci) {
-            if (!(mc instanceof MetaClassImpl) || mc instanceof AdaptingMetaClass) {return;}
+            if (!(mc instanceof MetaClassImpl) || mc instanceof AdaptingMetaClass) {
+            	if (LOG_ENABLED) LOG.info("meta class is neither MetaClassImpl nor AdoptingMetaClass, normal method selection path disabled.");
+                return;
+            }
+            if (LOG_ENABLED) LOG.info("meta class is a MetaClassImpl");
             
             MetaClassImpl mci = (MetaClassImpl) mc;
             Object receiver = ci.args[0];
             if (receiver==null) {
+                if (LOG_ENABLED) LOG.info("receiver is null");
                 receiver = NullObject.getNullObject();
             } 
             
             if (receiver instanceof Class) {
-                ci.method = mci.retrieveStaticMethod(ci.methodName, removeRealReceiver(ci.args));
+                if (LOG_ENABLED) LOG.info("receiver is a class");
+                ci.method = mci.retrieveStaticMethod(ci.name, removeRealReceiver(ci.args));
             } else {
-                ci.method = mci.getMethodWithCaching(ci.methodSelectionBase, ci.methodName, removeRealReceiver(ci.args), false);
+                ci.method = mci.getMethodWithCaching(ci.selector, ci.name, removeRealReceiver(ci.args), false);
             }
+            if (LOG_ENABLED) LOG.info("retrieved method from meta class: "+ci.method);
         }
         
         /**
@@ -292,10 +315,12 @@ public class IndyInterface {
             if (ci.handle!=null) return;
             try {
                 ci.useMetaClass = true;
+                if (LOG_ENABLED) LOG.info("set meta class invocation path");
                 Object receiver = ci.args[0];
                 if (receiver instanceof Class) {
                     ci.handle = LOOKUP.findVirtual(mc.getClass(), "invokeStaticMethod", MethodType.methodType(Object.class, Object.class, String.class, Object[].class));
                     ci.handle = ci.handle.bindTo(mc);
+                    if (LOG_ENABLED) LOG.info("use invokeStaticMethod with bound meta class");
                 } else {
                     boolean useShortForm = mc instanceof AdaptingMetaClass;
                     if (useShortForm) {
@@ -307,17 +332,20 @@ public class IndyInterface {
                     
                     ci.handle = ci.handle.bindTo(mc);
                     if (!useShortForm) {
-                        ci.handle = ci.handle.bindTo(ci.methodSelectionBase);
+                        ci.handle = ci.handle.bindTo(ci.selector);
                     }
+                    if (LOG_ENABLED) LOG.info("use invokeMethod with bound meta class");
                     
                     if (receiver instanceof GroovyObject) {
                         // if the meta class call fails we may still want to fall back to call
                         // GroovyObject#invokeMethod if the receiver is a GroovyObject
+                        if (LOG_ENABLED) LOG.info("add MissingMethod handler for GrooObject#invokeMethod fallback path");
                         ci.handle = MethodHandles.catchException(ci.handle, MissingMethodException.class, GROOVY_OBJECT_INVOKER);
                     }
                 }
-                ci.handle = MethodHandles.insertArguments(ci.handle, 1, ci.methodName);
+                ci.handle = MethodHandles.insertArguments(ci.handle, 1, ci.name);
                 ci.handle = ci.handle.asCollector(Object[].class, ci.targetType.parameterCount()-1);
+                if (LOG_ENABLED) LOG.info("bind method name and create collector for arguments");
             } catch (Exception e) {
                 throw new GroovyBugError(e);
             }
@@ -378,33 +406,6 @@ public class IndyInterface {
         }
         
         /**
-         * Converts an Object to String.
-         * This method is called by the handle to convert for example 
-         * a GString to String.
-         */
-        public static String coerceToString(Object o) {
-            return o.toString();
-        }
-        
-        /**
-         * Converts a Number to Byte.
-         * This method is called by the handle to convert
-         * Numbers to Byte.
-         */
-        public static Object coerceToByte(Object o) {
-            return new Byte(((Number) o).byteValue());
-        }
-        
-        /**
-         * Converts an Object to BigInteger.
-         * This method is called by the handle to convert
-         * Numbers to BigInteger using {@link String#valueOf(Object)} 
-         */
-        public static Object coerceToBigInt(Object o) {
-            return new BigInteger(String.valueOf((Number) o));
-        }
-        
-        /**
          * Guard to check if the argument is null.
          * This method is called by the handle to check
          * if the provided argument is null.
@@ -420,6 +421,13 @@ public class IndyInterface {
          */
         public static boolean isNotNull(Object o) {
             return o != null;
+        }
+        
+        /**
+         * Filter to negate a boolean
+         */
+        public static boolean negateBool(boolean b) {
+        	return !b;
         }
         
         /**
@@ -441,11 +449,13 @@ public class IndyInterface {
         private static void correctWrapping(CallInfo ci) {
             if (ci.useMetaClass) return;
             Class[] pt = ci.handle.type().parameterArray();
+            if (ci.currentType!=null) pt = ci.currentType.parameterArray();
             for (int i=1; i<ci.args.length; i++) {
                 if (ci.args[i] instanceof Wrapper) {
                     Class type = pt[i];
                     MethodType mt = MethodType.methodType(type, Object.class);
                     ci.handle = MethodHandles.filterArguments(ci.handle, i, UNWRAP_METHOD.asType(mt));
+                    if (LOG_ENABLED) LOG.info("added filter for Wrapper for argument at pos "+i);
                 }
             }
         }
@@ -458,23 +468,52 @@ public class IndyInterface {
         private static void correctCoerce(CallInfo ci) {
             if (ci.useMetaClass) return;
             Class[] parameters = ci.handle.type().parameterArray();
+            if (ci.currentType!=null) parameters = ci.currentType.parameterArray();
             if (ci.args.length != parameters.length) {
-                throw new GroovyBugError("at this point argument array length and parameter array length should be the same");
+                throw new GroovyBugError("At this point argument array length and parameter array length should be the same");
             }
-            for (int i=1; i<ci.args.length; i++) {
+            for (int i=0; i<ci.args.length; i++) {
+            	if (parameters[i]==Object.class) continue; 
                 Object arg = ci.args[i];
+                // we have to handle here different cases in which we do no
+                // transformations. We depend on our method selection to have
+                // selected only a compatible method, that means for a null
+                // argument we don't have to do anything. Same of course is if
+                // the argument is an instance of the parameter type. We also
+                // exclude boxing, since the MethodHandles will do that part
+                // already for us. Another case is the conversion of a primitive
+                // to another primitive or of the wrappers, or a combination of 
+                // these. This is also handled already. What is left is the 
+                // GString conversion and the number conversions.
                 if (arg==null) continue;
-                Class got = arg.getClass(); 
-                if (arg instanceof GString && parameters[i] == String.class) {
-                    ci.handle = MethodHandles.filterArguments(ci.handle, i, TO_STRING);                    
-                } else if (parameters[i] == Byte.class && got != Byte.class) {
-                    ci.handle = MethodHandles.filterArguments(ci.handle, i, TO_BYTE);
-                } else if (parameters[i] == BigInteger.class && got != BigInteger.class) {
-                    ci.handle = MethodHandles.filterArguments(ci.handle, i, TO_BIGINT);
-                }
+                Class got = arg.getClass();
+                if (got==parameters[i]) continue;
+                Class wrappedPara = TypeHelper.getWrapperClass(parameters[i]);
+                if (wrappedPara==got) continue;
+                if (parameters[i].isAssignableFrom(got)) continue;
+                if (isPrimitiveOrWrapper(parameters[i]) && isPrimitiveOrWrapper(got)) continue;
+                ci.handle = TypeTransformers.addTransformer(ci.handle, i, arg, wrappedPara);
+                if (LOG_ENABLED) LOG.info("added transformer at pos "+i+" for type "+got+" to type "+wrappedPara);
             }
         }
-        
+
+        /**
+         * Return true if the given argument is either a primitive or
+         * one of its wrapper. 
+         */
+        private static boolean isPrimitiveOrWrapper(Class c) {
+            return  c == byte.class    || c == Byte.class      ||
+                    c == int.class     || c == Integer.class   ||
+                    c == long.class    || c == Long.class      ||
+                    c == float.class   || c == Float.class     ||
+                    c == double.class  || c == Double.class    ||
+                    c == short.class   || c == Short.class     ||
+                    c == boolean.class || c == Boolean.class   ||
+                    c == char.class    || c == Character.class;
+        }
+
+
+
         /**
          * Gives a replacement receiver for null.
          * In case of the receiver being null we want to do the method
@@ -484,6 +523,7 @@ public class IndyInterface {
             if (ci.args[0]!=null) return;
             ci.handle = ci.handle.bindTo(NullObject.getNullObject());
             ci.handle = MethodHandles.dropArguments(ci.handle, 0, ci.targetType.parameterType(0));
+            if (LOG_ENABLED) LOG.info("binding null object receiver and dropping old receiver");
         }
         
         /**
@@ -492,7 +532,7 @@ public class IndyInterface {
         private static void setGuards(CallInfo ci, Object receiver) {
             if (ci.handle==null) return;
             
-            MethodHandle fallback = makeFallBack(ci.callSite, ci.sender, ci.methodName, ci.targetType, ci.safeNavigationOrig, ci.thisCall);
+            MethodHandle fallback = makeFallBack(ci.callSite, ci.sender, ci.name, ci.targetType, ci.safeNavigationOrig, ci.thisCall);
             
             // special guards for receiver
             if (receiver instanceof GroovyObject) {
@@ -502,11 +542,29 @@ public class IndyInterface {
                 // drop dummy receiver
                 test = test.asType(MethodType.methodType(boolean.class,ci.targetType.parameterType(0)));
                 ci.handle = MethodHandles.guardWithTest(test, ci.handle, fallback);
-            } else if (receiver != null) {
-                // handle constant meta class
-                ci.handle = switchPoint.guardWithTest(ci.handle, fallback);
-                
+                if (LOG_ENABLED) LOG.info("added meta class equality check");
             }
+            
+            if (!ci.useMetaClass) {
+                // category method needs Thread check
+                // cases:
+                // (1) method is a category method
+                //     We need to check if the category in the current thread is still active.
+                //     Since we invalidate on leaving the category checking for it being
+                //     active directly is good enough.
+                // (2) method is in use scope, but not from category
+                //     Since entering/leaving a category will invalidate, there is no need for any special check
+                // (3) method is not in use scope /and not from category
+                //     Since entering/leaving a category will invalidate, there is no need for any special check
+                if (ci.method instanceof NewInstanceMetaMethod) {
+                	ci.handle = MethodHandles.guardWithTest(HAS_CATEGORY_IN_CURRENT_THREAD_GUARD, ci.handle, fallback);
+                    if (LOG_ENABLED) LOG.info("added category-in-current-thread-guard for category method");
+                }
+            }
+            
+            // handle constant meta class and category changes
+            ci.handle = switchPoint.guardWithTest(ci.handle, fallback);
+            if (LOG_ENABLED) LOG.info("added switch point guard");
             
             // guards for receiver and parameter
             Class[] pt = ci.handle.type().parameterArray();
@@ -515,12 +573,14 @@ public class IndyInterface {
                 MethodHandle test = null;
                 if (arg==null) {
                     test = IS_NULL.asType(MethodType.methodType(boolean.class, pt[i]));
-                } else {
+                    if (LOG_ENABLED) LOG.info("added null argument check at pos "+i);
+                } else { 
                     Class argClass = arg.getClass();
-                    if (Modifier.isFinal(argClass.getModifiers()) && argumentClassIsParameterClass(argClass,pt[i])) continue;
+                    if (Modifier.isFinal(argClass.getModifiers()) && TypeHelper.argumentClassIsParameterClass(argClass,pt[i])) continue;
                     test = SAME_CLASS.
                                 bindTo(argClass).
                                 asType(MethodType.methodType(boolean.class, pt[i]));
+                    if (LOG_ENABLED) LOG.info("added same class check at pos "+i);
                 }
                 Class[] drops = new Class[i];
                 for (int j=0; j<drops.length; j++) drops[j] = pt[j];
@@ -530,45 +590,11 @@ public class IndyInterface {
         }
         
         /**
-         * Get wrapper class for a given class. 
-         * If the class is for a primitive number type, then the wrapper class
-         * will be returned. If it is no primtive number type, we return the 
-         * class itself.
-         */
-        private static Class getWrapperClass(Class c) {
-            if (c == Integer.TYPE) {
-                c = Integer.class;
-            } else if (c == Byte.TYPE) {
-                c = Byte.class;
-            } else if (c == Long.TYPE) {
-                c = Long.class;
-            } else if (c == Double.TYPE) {
-                c = Double.class;
-            } else if (c == Float.TYPE) {
-                c = Float.class;
-            }
-            return c;
-        }
-        
-        /**
-         * Realizes an unsharp equal for the class. 
-         * In general we return true if the provided arguments are the same. But
-         * we will also return true if our argument class is a wrapper for
-         * the parameter class. For example the parameter is an int and the
-         * argument class is a wrapper.
-         */
-        private static boolean argumentClassIsParameterClass(Class argumentClass, Class parameterClass) {
-            if (argumentClass == parameterClass) return true;
-            if (getWrapperClass(parameterClass) == argumentClass) return true;
-            return false;
-        }
-        
-        /**
          * Handles cases in which we have to correct the length of arguments
          * using the parameters. This might be needed for vargs and for one 
          * parameter calls without arguments (null is used then).  
          */
-        private static void correctParameterLenth(CallInfo info) {
+        private static void correctParameterLength(CallInfo info) {
             Class[] params = info.handle.type().parameterArray();
             
             if (info.handle==null) return;
@@ -594,6 +620,7 @@ public class IndyInterface {
                 // we have no argument for the array, meaning params.length is
                 // args.length+1. In that case we have to fill in an empty array
                 info.handle = MethodHandles.insertArguments(info.handle, params.length-1, Array.newInstance(lastParam.getComponentType(), 0));
+                if (LOG_ENABLED) LOG.info("added empty array for missing vargs part");
             } else { //params.length < args.length
                 // we depend on the method selection having done a good 
                 // job before already, so the only case for this here is, that
@@ -601,6 +628,7 @@ public class IndyInterface {
                 info.handle = info.handle.asCollector(
                         lastParam,
                         info.args.length - params.length + 1);
+                if (LOG_ENABLED) LOG.info("changed surplus arguments to be collected for vargs call");
             }
             
         }
@@ -611,7 +639,7 @@ public class IndyInterface {
         private static void addExceptionHandler(CallInfo info) {
             //TODO: if we would know exactly which paths require the exceptions
             //      and which paths not, we can sometimes save this guard 
-            if (info.handle==null) return;
+            if (info.handle==null || info.catchException==false) return;
             Class returnType = info.handle.type().returnType();
             if (returnType!=Object.class) {
                 MethodType mtype = MethodType.methodType(returnType, GroovyRuntimeException.class); 
@@ -619,6 +647,7 @@ public class IndyInterface {
             } else {
                 info.handle = MethodHandles.catchException(info.handle, GroovyRuntimeException.class, UNWRAP_EXCEPTION);
             }
+            if (LOG_ENABLED) LOG.info("added GroovyRuntimeException unwrapper");
         }
         
         /**
@@ -630,6 +659,7 @@ public class IndyInterface {
         private static boolean setNullForSafeNavigation(CallInfo info) {
             if (!info.safeNavigation) return false;
             info.handle = MethodHandles.dropArguments(NULL_REF,0,info.targetType.parameterArray());
+            if (LOG_ENABLED) LOG.info("set null returning handle for safe navigation");
             return true;
         }
         
@@ -638,12 +668,13 @@ public class IndyInterface {
          */
         private static void setMethodSelectionBase(CallInfo ci, MetaClass mc) {
             if (ci.thisCall) {
-                ci.methodSelectionBase = ci.sender;
+                ci.selector = ci.sender;
             } else if (ci.args[0]==null) {
-                ci.methodSelectionBase = NullObject.class;
+                ci.selector = NullObject.class;
             } else {
-                ci.methodSelectionBase = mc.getTheClass();
+                ci.selector = mc.getTheClass();
             }
+            if (LOG_ENABLED) LOG.info("method selection base set to "+ci.selector);
         }
         
         /**
@@ -653,31 +684,48 @@ public class IndyInterface {
             //TODO: handle GroovyInterceptable 
             CallInfo callInfo = new CallInfo();
             callInfo.targetType = callSite.type();
-            callInfo.methodName = methodName;
+            callInfo.name = methodName;
             callInfo.args = arguments;
             callInfo.callSite = callSite;
             callInfo.sender = sender;
             callInfo.safeNavigationOrig = safeNavigation;
             callInfo.safeNavigation = safeNavigation && arguments[0]==null;
             callInfo.thisCall = thisCall;
+            if (LOG_ENABLED) {
+                String msg =
+                    "----------------------------------------------------"+
+                    "\n\t\tinvocation of method '"+methodName+"'"+
+                    "\n\t\tsender: "+sender+
+                    "\n\t\ttargetType: "+callInfo.targetType+
+                    "\n\t\tsafe navigation: "+safeNavigation+
+                    "\n\t\tthisCall: "+thisCall+
+                    "\n\t\twith "+arguments.length+" arguments";
+                for (int i=0; i<arguments.length; i++) {
+                    msg += "\n\t\t\targument["+i+"] = "+arguments[i];
+                }
+                LOG.info(msg);
+            }
 
             if (!setNullForSafeNavigation(callInfo)) {
                 //            setInterceptableHandle(callInfo);
                 MetaClass mc = getMetaClass(callInfo.args[0]);
+                if (LOG_ENABLED) LOG.info("meta class is "+mc);
                 setMethodSelectionBase(callInfo, mc);
                 chooseMethod(mc, callInfo);
                 setHandleForMetaMethod(callInfo);
                 setMetaClassCallHandleIfNedded(mc, callInfo);
                 correctWrapping(callInfo);
-                correctParameterLenth(callInfo);
+                correctParameterLength(callInfo);
                 correctCoerce(callInfo);
                 correctNullReceiver(callInfo);
+                if (LOG_ENABLED) LOG.info("casting explicit from "+callInfo.handle.type()+" to "+callInfo.targetType);
                 callInfo.handle =  MethodHandles.explicitCastArguments(callInfo.handle,callInfo.targetType);
-
+                
                 addExceptionHandler(callInfo);
             } 
             setGuards(callInfo, callInfo.args[0]);
             callSite.setTarget(callInfo.handle);
+            if (LOG_ENABLED) LOG.info("call site target set, preparing outside invocation");
             
             MethodHandle call = callInfo.handle.asSpreader(Object[].class, callInfo.args.length);
             call = call.asType(MethodType.methodType(Object.class,Object[].class));

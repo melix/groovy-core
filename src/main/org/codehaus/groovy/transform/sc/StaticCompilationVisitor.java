@@ -19,12 +19,11 @@ import groovy.transform.CompileStatic;
 import groovy.transform.TypeChecked;
 import org.codehaus.groovy.ast.*;
 import org.codehaus.groovy.ast.expr.*;
+import org.codehaus.groovy.ast.stmt.EmptyStatement;
 import org.codehaus.groovy.ast.stmt.ExpressionStatement;
 import org.codehaus.groovy.ast.stmt.ForStatement;
 import org.codehaus.groovy.ast.stmt.Statement;
-import org.codehaus.groovy.classgen.asm.InvocationWriter;
-import org.codehaus.groovy.classgen.asm.TypeChooser;
-import org.codehaus.groovy.classgen.asm.WriterControllerFactory;
+import org.codehaus.groovy.classgen.asm.*;
 import org.codehaus.groovy.classgen.asm.sc.StaticTypesTypeChooser;
 import org.codehaus.groovy.control.SourceUnit;
 import org.codehaus.groovy.transform.stc.StaticTypeCheckingSupport;
@@ -38,6 +37,7 @@ import java.util.*;
 
 import static org.codehaus.groovy.transform.sc.StaticCompilationMetadataKeys.*;
 import static org.codehaus.groovy.transform.stc.StaticTypesMarker.DIRECT_METHOD_CALL_TARGET;
+import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 
 /**
  * This visitor is responsible for amending the AST with static compilation metadata or transform the AST so that
@@ -54,7 +54,16 @@ public class StaticCompilationVisitor extends StaticTypeCheckingVisitor {
     private static final ClassNode TYPECHECKED_CLASSNODE = ClassHelper.make(TypeChecked.class);
     private static final ClassNode COMPILESTATIC_CLASSNODE = ClassHelper.make(CompileStatic.class);
     private static final ClassNode[] TYPECHECKED_ANNOTATIONS = {TYPECHECKED_CLASSNODE, COMPILESTATIC_CLASSNODE};
-    
+
+    public static final ClassNode ARRAYLIST_CLASSNODE = ClassHelper.make(ArrayList.class);
+    public static final MethodNode ARRAYLIST_CONSTRUCTOR;
+    public static final MethodNode ARRAYLIST_ADD_METHOD = ARRAYLIST_CLASSNODE.getMethod("add", new Parameter[]{new Parameter(ClassHelper.OBJECT_TYPE, "o")});
+
+    static {
+        ARRAYLIST_CONSTRUCTOR = new ConstructorNode(ACC_PUBLIC, Parameter.EMPTY_ARRAY, ClassNode.EMPTY_ARRAY, EmptyStatement.INSTANCE);
+        ARRAYLIST_CONSTRUCTOR.setDeclaringClass(StaticCompilationVisitor.ARRAYLIST_CLASSNODE);
+    }
+
     private final TypeChooser typeChooser = new StaticTypesTypeChooser();
 
     private ClassNode classNode;
@@ -266,9 +275,15 @@ public class StaticCompilationVisitor extends StaticTypeCheckingVisitor {
             Expression objectExpression = pexp.getObjectExpression();
             ClassNode objectExpressionType = getType(objectExpression);
             if (objectExpressionType.implementsInterface(ClassHelper.LIST_TYPE)) {
-                objectExpression.putNodeMetaData(COMPONENT_TYPE, inferComponentType(objectExpressionType, ClassHelper.OBJECT_TYPE));
+                objectExpression.putNodeMetaData(COMPONENT_TYPE, inferComponentType(objectExpressionType, ClassHelper.int_TYPE));
             }
         }
         return exists;
     }
+
+    @Override
+    public void visitBinaryExpression(final BinaryExpression expression) {
+        super.visitBinaryExpression(expression);
+    }
+
 }

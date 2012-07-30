@@ -131,5 +131,177 @@ class BugsStaticCompileTest extends BugsSTCTest {
             assert squarePlusOne(2) == 5
         '''
     }
+
+    // GROOVY-5570
+    void testShouldNotThrowVerifyErrorRegisterContainsWrongType() {
+        assertScript '''
+                void foo() {
+                boolean idx = false
+                def cl = { idx }
+                }
+            '''
+        assertScript '''
+                void foo() {
+                int idx = 0
+                def cl = { idx }
+                }
+            '''
+    }
+
+    // GROOVY-5572
+    void testTernaryOperatorWithNull() {
+        assertScript '''
+            assert (true ? null : true) == null
+        '''
+    }
+
+    // GROOVY-5564
+    void testSkipStaticCompile() {
+        new GroovyShell().evaluate '''import groovy.transform.CompileStatic
+            import static groovy.transform.TypeCheckingMode.SKIP
+
+            @CompileStatic
+            class A {
+                @CompileStatic(SKIP)
+                String toString(Object o) { o }
+            }
+
+            def a = new A()
+            assert a.toString('foo')=='foo'
+            assert a.toString(1) == '1'
+            '''
+    }
+
+    // GROOVY-5586
+    void testCanonicalInInnerClass() {
+        new GroovyShell().evaluate '''import groovy.transform.*
+            @CompileStatic
+            class CanonicalStaticTest extends GroovyTestCase {
+              @Canonical class Thing {
+                String stuff
+              }
+
+              Thing testCanonical() {
+                new Thing()
+              }
+            }
+            assert new CanonicalStaticTest().testCanonical().toString() == 'CanonicalStaticTest$Thing(null)'
+        '''
+    }
+
+    // GROOVY-5607
+    // duplicate of GROOVY-5573, see ArraysAndCollectionsSTCTest#testArrayNewInstance()
+    void testStaticNewInstanceMethodClash() {
+        assertScript '''
+            class Sql {
+                static Sql newInstance(String s1, String s2, String s3, String s4) {
+                    new Sql()
+                }
+            }
+
+            @groovy.transform.CompileStatic
+            class Main {
+                void test() {
+                    @ASTTest(phase=INSTRUCTION_SELECTION, value= {
+                        assert node.rightExpression.getNodeMetaData(INFERRED_TYPE).nameWithoutPackage == 'Sql'
+                    })
+                    def sql = Sql.newInstance("a", "b", "c", "d")
+                }
+            }
+
+            new Main().test()
+        '''
+    }
+
+    void testCompileStaticTwiceShouldNotBeAProblem() {
+        new GroovyShell().evaluate '''import groovy.transform.CompileStatic
+        @CompileStatic
+        class Tool {
+            @CompileStatic // annotated too, even if class is already annotated
+            String relativePath(File relbase, File file) {
+                def pathParts = []
+                def currentFile = file
+                while (currentFile != null && currentFile != relbase) {
+                    pathParts += currentFile.name
+                    currentFile = currentFile.parentFile
+                }
+                pathParts.reverse().join('/')
+            }
+        }
+        File a = new File('foo')
+        File b = new File(new File(a, 'bar'), 'baz')
+        assert new Tool().relativePath(a,b) == 'bar/baz'
+        '''
+    }
+
+    void testCompileStaticTwiceShouldNotBeAProblemUsingCustomizer() {
+        assertScript '''import groovy.transform.CompileStatic
+        @CompileStatic
+        class Tool {
+            @CompileStatic // annotated too, even if class is already annotated
+            String relativePath(File relbase, File file) {
+                def pathParts = []
+                def currentFile = file
+                while (currentFile != null && currentFile != relbase) {
+                    pathParts += currentFile.name
+                    currentFile = currentFile.parentFile
+                }
+                pathParts.reverse().join('/')
+            }
+        }
+        File a = new File('foo')
+        File b = new File(new File(a, 'bar'), 'baz')
+        assert new Tool().relativePath(a,b) == 'bar/baz'
+        '''
+    }
+
+    // GROOVY-5613
+    void testNullSafeAssignment() {
+        assertScript '''
+        class A {
+            int x = -1
+        }
+        A a = new A()
+        @ASTTest(phase=INSTRUCTION_SELECTION, value={
+            assert node.getNodeMetaData(INFERRED_TYPE) == int_TYPE
+        })
+        def x = a?.x
+        '''
+    }
+    void testNullSafeAssignmentWithLong() {
+        assertScript '''
+        class A {
+            long x = -1
+        }
+        A a = new A()
+        @ASTTest(phase=INSTRUCTION_SELECTION, value={
+            assert node.getNodeMetaData(INFERRED_TYPE) == long_TYPE
+        })
+        def x = a?.x
+        '''
+    }
+    void testNullSafeAssignmentWithChar() {
+        assertScript '''
+        class A {
+            char x = 'a'
+        }
+        A a = new A()
+        @ASTTest(phase=INSTRUCTION_SELECTION, value={
+            assert node.getNodeMetaData(INFERRED_TYPE) == char_TYPE
+        })
+        def x = a?.x
+        assert x == 'a'
+        '''
+    }
+    void testCallStaticallyImportedMethodWithNullSafeArgument() {
+        assertScript '''import static java.lang.Math.abs
+        class A {
+            int x = -1
+        }
+        def a = new A()
+        def x = a?.x
+        assert abs(a?.x) == 1
+        '''
+    }
 }
 

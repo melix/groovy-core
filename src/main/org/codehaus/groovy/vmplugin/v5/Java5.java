@@ -385,7 +385,7 @@ public class Java5 implements VMPlugin {
             front.setRedirect(back);
             return front;
         }
-        return back;
+        return back.getPlainNodeReference();
     }
 
     private Parameter[] makeParameters(CompileUnit cu, Type[] types, Class[] cls, Annotation[][] parameterAnnotations) {
@@ -405,5 +405,8 @@ public class Java5 implements VMPlugin {
         setAnnotationMetaData(annotations, parameter);
         return parameter;
     }
+    
+    @Override
+    public void invalidateCallSites() {}
 }
 

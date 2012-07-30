@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2010 the original author or authors.
+ * Copyright 2003-2012 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,6 @@
  * limitations under the License.
  */
 package groovy.transform.stc
-
-import org.codehaus.groovy.control.customizers.CompilationCustomizer
-import org.codehaus.groovy.control.CompilePhase
-import org.codehaus.groovy.ast.ClassCodeVisitorSupport
-import org.codehaus.groovy.ast.expr.VariableExpression
-import org.codehaus.groovy.ast.expr.Expression
-import org.codehaus.groovy.transform.stc.StaticTypesMarker
-import org.codehaus.groovy.ast.ClassHelper
 
 /**
  * Unit tests for static type checking : generics.
@@ -73,7 +65,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
             list.add 'Hello'
         '''
     }
-    
+
     void testAddOnListUsingLeftShift() {
         shouldFailWithMessages '''
             List<String> list = []
@@ -300,12 +292,12 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
     }
 
     void testVoidReturnTypeInferrence() {
-      assertScript '''
+        assertScript '''
         Object m() {
           def s = '1234'
           println 'Hello'
         }
-      '''
+        '''
     }
 
     // GROOVY-5237
@@ -349,7 +341,7 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
             new Foo().m(B)
         '''
     }
-  
+
     void testMethodCallWithClassParameterUsingClassLiteralArgWithoutWrappingClass() {
         assertScript '''
             class A {}
@@ -472,18 +464,25 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
 
     // GROOVY-5516
     void testAddAllWithCollectionShouldBeAllowed() {
-        assertScript '''
+        assertScript '''import org.codehaus.groovy.transform.stc.ExtensionMethodNode
             List<String> list = ['a','b','c']
             Collection<String> e = list.findAll { it }
-            list.addAll(e)
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                def dmt = node.rightExpression.getNodeMetaData(DIRECT_METHOD_CALL_TARGET)
+                assert dmt instanceof ExtensionMethodNode == false
+                assert dmt.name == 'addAll'
+                assert dmt.declaringClass == make(List)
+            })
+            boolean r = list.addAll(e)
         '''
     }
+
     void testAddAllWithCollectionShouldNotBeAllowed() {
         shouldFailWithMessages '''
             List<String> list = ['a','b','c']
             Collection<Integer> e = (Collection<Integer>) [1,2,3]
-            list.addAll(e)
-        ''', 'Cannot call java.util.List#addAll(java.lang.String) with arguments [java.util.Collection <Integer>]'
+            boolean r = list.addAll(e)
+        ''', 'Cannot call org.codehaus.groovy.runtime.DefaultGroovyMethods#addAll(java.util.Collection <java.lang.String>, java.lang.String[]) with arguments [java.util.List <java.lang.String>, java.util.Collection <Integer>]'
     }
 
     // GROOVY-5528
@@ -493,14 +492,334 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
         '''
     }
 
+    // GROOVY-5559
+    void testGStringInListShouldNotBeConsideredAsAString() {
+        assertScript '''import org.codehaus.groovy.ast.tools.WideningCategories.LowestUpperBoundClassNode as LUB
+        def bar = 1
+        @ASTTest(phase=INSTRUCTION_SELECTION, value={
+            assert node.getNodeMetaData(INFERRED_TYPE) == LIST_TYPE
+            assert node.getNodeMetaData(INFERRED_TYPE).genericsTypes[0].type instanceof LUB
+        })
+        def list = ["foo", "$bar"]
+        '''
+
+        shouldFailWithMessages '''import org.codehaus.groovy.ast.tools.WideningCategories.LowestUpperBoundClassNode as LUB
+        def bar = 1
+        @ASTTest(phase=INSTRUCTION_SELECTION, value={
+            assert node.getNodeMetaData(INFERRED_TYPE) == LIST_TYPE
+            assert node.getNodeMetaData(INFERRED_TYPE).genericsTypes[0].type instanceof LUB
+        })
+        List<String> list = ["foo", "$bar"]
+        ''', 'You are trying to use a GString'
+
+        shouldFailWithMessages '''
+        def bar = 1
+        @ASTTest(phase=INSTRUCTION_SELECTION, value={
+            assert node.getNodeMetaData(INFERRED_TYPE) == LIST_TYPE
+            assert node.getNodeMetaData(INFERRED_TYPE).genericsTypes[0].type == GSTRING_TYPE
+        })
+        List<String> list = ["$bar"] // single element means no LUB
+        ''', 'You are trying to use a GString'
+    }
+
+    // GROOVY-5559: related behaviour
+    void testGStringString() {
+        assertScript '''
+            int i = 1
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                assert node.getNodeMetaData(INFERRED_TYPE) == GSTRING_TYPE
+            })
+            def str = "foo$i"
+            assert str == 'foo1'
+        '''
+    }
+
+    // GROOVY-5594
+    void testMapEntryUsingPropertyNotation() {
+        assertScript '''
+        Map.Entry<Date, Integer> entry
+
+        @ASTTest(phase=INSTRUCTION_SELECTION, value={
+            assert node.getNodeMetaData(INFERRED_TYPE) == make(Date)
+        })
+        def k = entry?.key
+
+        @ASTTest(phase=INSTRUCTION_SELECTION, value={
+            assert node.getNodeMetaData(INFERRED_TYPE) == Integer_TYPE
+        })
+        def v = entry?.value
+        '''
+    }
+
+    void testInferenceFromMap() {
+        assertScript '''
+        Map<Date, Integer> map
+
+        @ASTTest(phase=INSTRUCTION_SELECTION, value={
+            def infType = node.getNodeMetaData(INFERRED_TYPE)
+            assert infType == make(Set)
+            def entryInfType = infType.genericsTypes[0].type
+            assert entryInfType == make(Map.Entry)
+            assert entryInfType.genericsTypes[0].type == make(Date)
+            assert entryInfType.genericsTypes[1].type == Integer_TYPE
+        })
+        def entries = map?.entrySet()
+        '''
+    }
+
+    void testInferenceFromListOfMaps() {
+        assertScript '''
+        List<Map<Date, Integer>> maps
+
+        @ASTTest(phase=INSTRUCTION_SELECTION, value={
+            def listType = node.getNodeMetaData(INFERRED_TYPE)
+            assert listType == Iterator_TYPE
+            def infType = listType.genericsTypes[0].type
+            assert infType == make(Map)
+            assert infType.genericsTypes[0].type == make(Date)
+            assert infType.genericsTypes[1].type == Integer_TYPE
+        })
+        def iter = maps?.iterator()
+        '''
+    }
+
+    void testAssignNullMapWithGenerics() {
+        assertScript '''
+            Map<String, Integer> foo = null
+            Integer result = foo?.get('a')
+        '''
+    }
+
+    void testAssignNullListWithGenerics() {
+        assertScript '''
+            List<Integer> foo = null
+            Integer result = foo?.get(0)
+        '''
+    }
+
+    void testAssignNullListWithGenericsWithSequence() {
+        assertScript '''
+            List<Integer> foo = [1]
+            foo = null
+            Integer result = foo?.get(0)
+        '''
+
+    }
+
+    void testMethodCallWithArgumentUsingNestedGenerics() {
+        assertScript '''
+           ThreadLocal<Map<Integer, String>> cachedConfigs = new ThreadLocal<Map<Integer, String>>()
+           def configs = new HashMap<Integer, String>()
+           cachedConfigs.set configs
+        '''
+    }
+
+    void testInferDiamondUsingAIC() {
+        shouldFailWithMessages '''
+            Map<String,Date> map = new HashMap<>() {}
+        ''', 'Cannot use diamond <> with anonymous inner classes'
+    }
+
+    // GROOVY-5614
+    void testInferDiamondForFields() {
+        assertScript '''
+            class Rules {
+                @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                    def type = node.initialExpression.getNodeMetaData(INFERRED_TYPE)
+                    assert type == make(HashMap)
+                    assert type.genericsTypes.length == 2
+                    assert type.genericsTypes[0].type == Integer_TYPE
+                    assert type.genericsTypes[1].type == make(Date)
+                })
+
+                final Map<Integer, Date> bindings1  = new HashMap<>();
+                @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                    def type = node.initialExpression.getNodeMetaData(INFERRED_TYPE)
+                    assert type == make(HashMap)
+                    assert type.genericsTypes.length == 2
+                    assert type.genericsTypes[0].type == STRING_TYPE
+                    assert type.genericsTypes[1].type == STRING_TYPE
+                })
+                final Map<String, String> bindings2 = new HashMap<>();
+            }
+            def r = new Rules()
+
+            r.bindings1[3] = new Date()
+            assert r.bindings1.containsKey(3)
+
+            r.bindings2['a'] = 'A'
+            r.bindings2.put('b', 'B')
+
+        '''
+    }
+    void testInferDiamondForAssignment() {
+        assertScript '''
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                def type = node.getNodeMetaData(INFERRED_TYPE)
+                assert type == make(HashMap)
+                assert type.genericsTypes.length == 2
+                assert type.genericsTypes[0].type == STRING_TYPE
+                assert type.genericsTypes[1].type == STRING_TYPE
+                type = node.rightExpression.getNodeMetaData(INFERRED_TYPE)
+                assert type == make(HashMap)
+                assert type.genericsTypes.length == 2
+                assert type.genericsTypes[0].type == STRING_TYPE
+                assert type.genericsTypes[1].type == STRING_TYPE
+            })
+            Map<String, String> map = new HashMap<>()
+        '''
+    }
+    void testInferDiamondForAssignmentWithDates() {
+        assertScript '''
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                def DATE = make(Date)
+                def type = node.getNodeMetaData(INFERRED_TYPE)
+                assert type == make(HashMap)
+                assert type.genericsTypes.length == 2
+                assert type.genericsTypes[0].type == DATE
+                assert type.genericsTypes[1].type == DATE
+                type = node.rightExpression.getNodeMetaData(INFERRED_TYPE)
+                assert type == make(HashMap)
+                assert type.genericsTypes.length == 2
+                assert type.genericsTypes[0].type == DATE
+                assert type.genericsTypes[1].type == DATE
+            })
+            Map<Date, Date> map = new HashMap<>()
+        '''
+    }
+    void testInferDiamondForAssignmentWithDatesAndIllegalKeyUsingPut() {
+        shouldFailWithMessages '''
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                def DATE = make(Date)
+                def type = node.getNodeMetaData(INFERRED_TYPE)
+                assert type == make(HashMap)
+                assert type.genericsTypes.length == 2
+                assert type.genericsTypes[0].type == DATE
+                assert type.genericsTypes[1].type == DATE
+                type = node.rightExpression.getNodeMetaData(INFERRED_TYPE)
+                assert type == make(HashMap)
+                assert type.genericsTypes.length == 2
+                assert type.genericsTypes[0].type == DATE
+                assert type.genericsTypes[1].type == DATE
+            })
+            Map<Date, Date> map = new HashMap<>()
+            map.put('foo', new Date())
+        ''', 'Cannot find matching method java.util.HashMap#put(java.lang.String, java.util.Date)'
+    }
+    void testInferDiamondForAssignmentWithDatesAndIllegalKeyUsingSquareBracket() {
+        shouldFailWithMessages '''
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                def DATE = make(Date)
+                def type = node.getNodeMetaData(INFERRED_TYPE)
+                assert type == make(HashMap)
+                assert type.genericsTypes.length == 2
+                assert type.genericsTypes[0].type == DATE
+                assert type.genericsTypes[1].type == DATE
+                type = node.rightExpression.getNodeMetaData(INFERRED_TYPE)
+                assert type == make(HashMap)
+                assert type.genericsTypes.length == 2
+                assert type.genericsTypes[0].type == DATE
+                assert type.genericsTypes[1].type == DATE
+            })
+            Map<Date, Date> map = new HashMap<>()
+            map['foo'] = new Date()
+        ''', 'Cannot call org.codehaus.groovy.runtime.DefaultGroovyMethods#putAt(java.util.Map <java.util.Date, java.util.Date>, java.util.Date, java.util.Date) with arguments [java.util.HashMap <java.util.Date, java.util.Date>, java.lang.String, java.util.Date]'
+    }
+    void testInferDiamondForAssignmentWithDatesAndIllegalValueUsingPut() {
+        shouldFailWithMessages '''
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                def DATE = make(Date)
+                def type = node.getNodeMetaData(INFERRED_TYPE)
+                assert type == make(HashMap)
+                assert type.genericsTypes.length == 2
+                assert type.genericsTypes[0].type == DATE
+                assert type.genericsTypes[1].type == DATE
+                type = node.rightExpression.getNodeMetaData(INFERRED_TYPE)
+                assert type == make(HashMap)
+                assert type.genericsTypes.length == 2
+                assert type.genericsTypes[0].type == DATE
+                assert type.genericsTypes[1].type == DATE
+            })
+            Map<Date, Date> map = new HashMap<>()
+            map.put(new Date(), 'foo')
+        ''', 'Cannot find matching method java.util.HashMap#put(java.util.Date, java.lang.String)'
+    }
+    void testInferDiamondForAssignmentWithDatesAndIllegalValueUsingSquareBracket() {
+        shouldFailWithMessages '''
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                def DATE = make(Date)
+                def type = node.getNodeMetaData(INFERRED_TYPE)
+                assert type == make(HashMap)
+                assert type.genericsTypes.length == 2
+                assert type.genericsTypes[0].type == DATE
+                assert type.genericsTypes[1].type == DATE
+                type = node.rightExpression.getNodeMetaData(INFERRED_TYPE)
+                assert type == make(HashMap)
+                assert type.genericsTypes.length == 2
+                assert type.genericsTypes[0].type == DATE
+                assert type.genericsTypes[1].type == DATE
+            })
+            Map<Date, Date> map = new HashMap<>()
+            map[new Date()] = 'foo'
+        ''', 'Cannot assign value of type java.lang.String to variable of type java.util.Date'
+    }
+
+    void testCallMethodWithParameterizedArrayList() {
+        assertScript '''
+        class MyUtility {
+            def methodOne() {
+                def someFiles = new ArrayList<File>()
+                def someString = ''
+                methodTwo someString, someFiles
+            }
+
+            def methodTwo(String s, List<File> files) {}
+        }
+        new MyUtility()
+        '''
+    }
+
+    void testGenericTypeArrayOfDGMMethod() {
+        assertScript '''
+            int[] arr = [0,1,2,3]
+            assert arr.findAll() == [1,2,3]
+        '''
+    }
+
+    // GROOVY-5617
+    void testIntermediateListAssignmentOfGStrings() {
+        assertScript '''
+        def test() {
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                def type = node.getNodeMetaData(INFERRED_TYPE)
+                assert type == make(List)
+                assert type.genericsTypes.length==1
+                assert type.genericsTypes[0].type == GSTRING_TYPE
+            })
+            List<GString> dates = ["${new Date()-1}", "${new Date()}", "${new Date()+1}"]
+            dates*.toUpperCase()
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                def type = node.getNodeMetaData(INFERRED_TYPE)
+                assert type == make(List)
+                assert type.genericsTypes.length==1
+                assert type.genericsTypes[0].type == GSTRING_TYPE
+            })
+            List<GString> copied = []
+            copied.addAll(dates)
+            List<String> upper = copied*.toUpperCase()
+        }
+        test()
+        '''
+    }
+
     static class MyList extends LinkedList<String> {}
 
     public static class ClassA<T> {
-        public <X> Class<X> foo(Class<X> classType){
+        public <X> Class<X> foo(Class<X> classType) {
             return classType;
         }
 
-        public <X> Class<X> bar(Class<T> classType){
+        public <X> Class<X> bar(Class<T> classType) {
             return null;
         }
     }

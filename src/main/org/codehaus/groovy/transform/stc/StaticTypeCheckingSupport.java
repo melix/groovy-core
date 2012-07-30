@@ -62,6 +62,11 @@ public abstract class StaticTypeCheckingSupport {
                 put(ClassHelper.Double_TYPE, 5);
             }});
 
+    final static ClassNode GSTRING_STRING_CLASSNODE = WideningCategories.lowestUpperBound(
+            ClassHelper.STRING_TYPE,
+            ClassHelper.GSTRING_TYPE
+    );
+
     /**
      * This is for internal use only. When an argument method is null, we cannot determine its type, so
      * we use this one as a wildcard.
@@ -186,9 +191,10 @@ public abstract class StaticTypeCheckingSupport {
         // we already know the lengths are equal
         for (int i = 0; i < params.length; i++) {
             ClassNode paramType = params[i].getType();
-            if (!isAssignableTo(args[i], paramType)) return -1;
+            ClassNode argType = args[i];
+            if (!isAssignableTo(argType, paramType)) return -1;
             else {
-                if (!paramType.equals(args[i])) dist+=getDistance(args[i], paramType);
+                if (!paramType.equals(argType)) dist+=getDistance(argType, paramType);
             }
         }
         return dist;
@@ -588,7 +594,14 @@ public abstract class StaticTypeCheckingSupport {
             return true;
         }
 
+        if (GROOVY_OBJECT_TYPE.equals(leftRedirect) && isBeingCompiled(right)) {
+            return true;
+        }
         return false;
+    }
+
+    public static boolean isBeingCompiled(ClassNode node) {
+        return node.getCompileUnit() != null;
     }
 
     static boolean checkPossibleLooseOfPrecision(ClassNode left, ClassNode right, Expression rightExpr) {
@@ -665,12 +678,19 @@ public abstract class StaticTypeCheckingSupport {
         if (parameters != null) {
             for (int i = 0, parametersLength = parameters.length; i < parametersLength; i++) {
                 final ClassNode parameter = parameters[i];
-                sb.append(parameter.toString(false));
+                sb.append(prettyPrintType(parameter));
                 if (i < parametersLength - 1) sb.append(", ");
             }
         }
         sb.append(")");
         return sb.toString();
+    }
+
+    static String prettyPrintType(ClassNode type) {
+        if (type.isArray()) {
+            return prettyPrintType(type.getComponentType())+"[]";
+        }
+        return type.toString(false);
     }
 
     public static boolean implementsInterfaceOrIsSubclassOf(ClassNode type, ClassNode superOrInterface) {
@@ -699,6 +719,9 @@ public abstract class StaticTypeCheckingSupport {
         }
         if (type.isArray() && superOrInterface.isArray()) {
             return implementsInterfaceOrIsSubclassOf(type.getComponentType(), superOrInterface.getComponentType());
+        }
+        if (GROOVY_OBJECT_TYPE.equals(superOrInterface) && !type.isInterface() && isBeingCompiled(type)) {
+            return true;
         }
         return false;
     }
@@ -1207,5 +1230,47 @@ public abstract class StaticTypeCheckingSupport {
             return methods;
         }
 
+    }
+
+    /**
+     * @return true if the class node is either a GString or the LUB of String and GString.
+     */
+    public static boolean isGStringOrGStringStringLUB(ClassNode node) {
+        return ClassHelper.GSTRING_TYPE.equals(node)
+                || GSTRING_STRING_CLASSNODE.equals(node);
+    }
+
+    /**
+     * @param node the node to be tested
+     * @return true if the node is using generics types and one of those types is a gstring or string/gstring lub
+     */
+    public static boolean isParameterizedWithGStringOrGStringString(ClassNode node) {
+        if (node.isArray()) return isParameterizedWithGStringOrGStringString(node.getComponentType());
+        if (node.isUsingGenerics()) {
+            GenericsType[] genericsTypes = node.getGenericsTypes();
+            if (genericsTypes!=null) {
+                for (GenericsType genericsType : genericsTypes) {
+                    if (isGStringOrGStringStringLUB(genericsType.getType())) return true;
+                }
+            }
+        }
+        return node.getSuperClass() != null && isParameterizedWithGStringOrGStringString(node.getUnresolvedSuperClass());
+    }
+
+    /**
+     * @param node the node to be tested
+     * @return true if the node is using generics types and one of those types is a string
+     */
+    public static boolean isParameterizedWithString(ClassNode node) {
+        if (node.isArray()) return isParameterizedWithString(node.getComponentType());
+        if (node.isUsingGenerics()) {
+            GenericsType[] genericsTypes = node.getGenericsTypes();
+            if (genericsTypes!=null) {
+                for (GenericsType genericsType : genericsTypes) {
+                    if (STRING_TYPE.equals(genericsType.getType())) return true;
+                }
+            }
+        }
+        return node.getSuperClass() != null && isParameterizedWithString(node.getUnresolvedSuperClass());
     }
 }

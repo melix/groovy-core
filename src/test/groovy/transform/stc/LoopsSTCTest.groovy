@@ -107,5 +107,58 @@ class LoopsSTCTest extends StaticTypeCheckingTestCase {
             }
         ''', 'Cannot find matching method'
     }
+
+    // GROOVY-5587
+    void testMapEntryInForInLoop() {
+        assertScript '''
+            @ASTTest(phase=INSTRUCTION_SELECTION, value= {
+                lookup('forLoop').each {
+                    assert it instanceof org.codehaus.groovy.ast.stmt.ForStatement
+                    def collection = it.collectionExpression // MethodCallExpression
+                    def inft = collection.getNodeMetaData(INFERRED_TYPE)
+                    assert inft == make(Set)
+                    def entryInft = inft.genericsTypes[0].type
+                    assert entryInft == make(Map.Entry)
+                    assert entryInft.genericsTypes[0].type == STRING_TYPE
+                    assert entryInft.genericsTypes[1].type == Integer_TYPE
+                }
+            })
+            void test() {
+                def result = ""
+                def sum = 0
+                forLoop:
+                for ( Map.Entry<String, Integer> it in [a:1, b:3].entrySet() ) {
+                   result += it.getKey()
+                   sum += it.getValue()
+                }
+                assert result == "ab"
+                assert sum == 4
+            }
+            test()
+        '''
+    }
+
+    void testShouldNotInferSoftReferenceAsComponentType() {
+        assertScript '''import java.lang.reflect.Field
+            import org.codehaus.groovy.ast.stmt.ForStatement
+
+            @ASTTest(phase=INSTRUCTION_SELECTION, value= {
+                def FIELD_ARRAY = make(Field).makeArray()
+                def forStmt = lookup('myLoop')[0]
+                assert forStmt instanceof ForStatement
+                def collectionType = forStmt.collectionExpression.getNodeMetaData(INFERRED_TYPE)
+                assert collectionType == FIELD_ARRAY
+            })
+            void forInTest() {
+                int i = 0;
+                myLoop:
+                for (def field : String.class.declaredFields) {
+                    i++;
+                }
+                assert i > 0
+            }
+        '''
+    }
+
 }
 

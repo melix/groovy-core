@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2009 the original author or authors.
+ * Copyright 2003-2012 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,7 @@ import org.codehaus.groovy.ast.ClassNode;
 import org.codehaus.groovy.ast.GenericsType;
 
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Utility methods to deal with generic types.
@@ -120,7 +118,7 @@ public class GenericsUtils {
         if (node == null) return;
         if (!node.isUsingGenerics() || !node.isRedirectNode()) return;
         GenericsType[] parameterized = node.getGenericsTypes();
-        if (parameterized == null) return;
+        if (parameterized == null || parameterized.length == 0) return;
         GenericsType[] redirectGenericsTypes = node.redirect().getGenericsTypes();
         if (redirectGenericsTypes==null) redirectGenericsTypes = parameterized;
         for (int i = 0; i < redirectGenericsTypes.length; i++) {
@@ -166,6 +164,7 @@ public class GenericsUtils {
         extractPlaceholders(classNode, parameters);
         ClassNode node = interfaceFromClassNode.getPlainNodeReference();
         GenericsType[] interfaceGTs = interfaceFromClassNode.getGenericsTypes();
+        if (interfaceGTs==null) return anInterface;
         GenericsType[] types = new GenericsType[interfaceGTs.length];
         for (int i = 0; i < interfaceGTs.length; i++) {
             GenericsType interfaceGT = interfaceGTs[i];

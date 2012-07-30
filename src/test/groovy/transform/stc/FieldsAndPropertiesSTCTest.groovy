@@ -126,18 +126,6 @@ class FieldsAndPropertiesSTCTest extends StaticTypeCheckingTestCase {
         '''
     }
 
-    void testAttributeWithInheritance() {
-        shouldFailWithMessages '''
-            class A {
-                int x
-            }
-            class B extends A {
-            }
-            B b = new B()
-            b.@x = 2
-        ''', 'No such property: x for class: B'
-    }
-
     void testFieldTypeWithInheritance() {
         shouldFailWithMessages '''
             class A {
@@ -280,6 +268,48 @@ class FieldsAndPropertiesSTCTest extends StaticTypeCheckingTestCase {
         '''
     }
 
+    void testClassPropertyOnInterface() {
+        assertScript '''
+            Class test(Serializable arg) {
+                Class<?> clazz = arg.class
+                clazz
+            }
+            assert test('foo') == String
+        '''
+        assertScript '''
+            Class test(Serializable arg) {
+                Class<?> clazz = arg.getClass()
+                clazz
+            }
+            assert test('foo') == String
+        '''
+    }
+
+    void testSetterUsingPropertyNotation() {
+        assertScript '''
+            class A {
+                boolean ok = false;
+                void setFoo(String foo) { ok = foo == 'foo' }
+            }
+            def a = new A()
+            a.foo = 'foo'
+            assert a.ok
+        '''
+    }
+
+    void testSetterUsingPropertyNotationOnInterface() {
+        assertScript '''
+                interface FooAware { void setFoo(String arg) }
+                class A implements FooAware {
+                    void setFoo(String foo) { }
+                }
+                void test(FooAware a) {
+                    a.foo = 'foo'
+                }
+                def a = new A()
+                test(a)
+            '''
+    }
 
 
     public static class BaseClass {

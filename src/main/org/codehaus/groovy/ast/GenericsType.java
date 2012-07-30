@@ -319,7 +319,7 @@ public class GenericsType extends ASTNode {
             Map<String, GenericsType> classNodePlaceholders = GenericsUtils.extractPlaceholders(classNode);
             Map<String, GenericsType> boundPlaceHolders = GenericsUtils.extractPlaceholders(bound);
             boolean match = true;
-            for (int i = 0; i < redirectBoundGenericTypes.length && match; i++) {
+            for (int i = 0; redirectBoundGenericTypes!=null && i < redirectBoundGenericTypes.length && match; i++) {
                 GenericsType redirectBoundType = redirectBoundGenericTypes[i];
                 GenericsType classNodeType = cnTypes[i];
                 // The following code has been commented out because it causes GROOVY-5415
@@ -407,7 +407,11 @@ public class GenericsType extends ASTNode {
      * @return the parameterized superclass
      */
     private static ClassNode getParameterizedSuperClass(ClassNode classNode) {
+        if (ClassHelper.OBJECT_TYPE.equals(classNode)) return null;
         ClassNode superClass = classNode.getUnresolvedSuperClass();
+        if (superClass==null) {
+            return ClassHelper.OBJECT_TYPE;
+        }
         if (!classNode.isUsingGenerics() || !superClass.isUsingGenerics()) return superClass;
         GenericsType[] genericsTypes = classNode.getGenericsTypes();
         GenericsType[] redirectGenericTypes = classNode.redirect().getGenericsTypes();

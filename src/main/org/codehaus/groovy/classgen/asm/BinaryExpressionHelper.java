@@ -301,6 +301,10 @@ public class BinaryExpressionHelper {
         if (directAssignment) {
             VariableExpression var = (VariableExpression) leftExpression;
             rhsType = controller.getTypeChooser().resolveType(var, controller.getClassNode());
+            if (var.isClosureSharedVariable() && ClassHelper.isPrimitiveType(rhsType)) {
+                // GROOVY-5570: if a closure shared variable is a primitive type, it must be boxed
+                rhsType = ClassHelper.getWrapper(rhsType);
+            }
             if (!(rightExpression instanceof ConstantExpression) || (((ConstantExpression) rightExpression).getValue()!=null)) {
                 operandStack.doGroovyCast(rhsType);
             } else {
@@ -832,16 +836,7 @@ public class BinaryExpressionHelper {
         
         ClassNode truePartType = typeChooser.resolveType(truePart, controller.getClassNode());
         ClassNode falsePartType = typeChooser.resolveType(falsePart, controller.getClassNode());
-        ClassNode common;
-        if (isNullConstant(truePart) && isNullConstant(falsePart)) {
-            common = ClassHelper.OBJECT_TYPE;
-        } else if (isNullConstant(truePart)) {
-            common = falsePartType;
-        } else if (isNullConstant(falsePart)) {
-            common = truePartType;
-        } else {
-            common = WideningCategories.lowestUpperBound(truePartType, falsePartType);
-        }
+        ClassNode common = WideningCategories.lowestUpperBound(truePartType, falsePartType);
 
         // we compile b?x:y as 
         //      boolean(b)?S(x):S(y), S = common super type of x,y
