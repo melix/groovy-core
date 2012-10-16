@@ -256,6 +256,7 @@ public class StaticCompilationVisitor extends StaticTypeCheckingVisitor {
             final ClassNode collectionType = getType(forLoop.getCollectionExpression());
             ClassNode componentType = inferLoopElementType(collectionType);
             forLoop.getVariable().setType(componentType);
+            forLoop.getVariable().setOriginType(componentType);
         }
     }
 
@@ -274,16 +275,11 @@ public class StaticCompilationVisitor extends StaticTypeCheckingVisitor {
         if (exists) {
             Expression objectExpression = pexp.getObjectExpression();
             ClassNode objectExpressionType = getType(objectExpression);
-            if (objectExpressionType.implementsInterface(ClassHelper.LIST_TYPE)) {
+            if (StaticTypeCheckingSupport.implementsInterfaceOrIsSubclassOf(objectExpressionType, ClassHelper.LIST_TYPE)) {
                 objectExpression.putNodeMetaData(COMPONENT_TYPE, inferComponentType(objectExpressionType, ClassHelper.int_TYPE));
             }
         }
         return exists;
-    }
-
-    @Override
-    public void visitBinaryExpression(final BinaryExpression expression) {
-        super.visitBinaryExpression(expression);
     }
 
 }

@@ -186,8 +186,11 @@ public abstract class StaticTypeCheckingSupport {
      * not of the exact type but still match
      */
     public static int allParametersAndArgumentsMatch(Parameter[] params, ClassNode[] args) {
-        if (params==null) return args.length==0?0:-1;
+        if (params==null) {
+            params = Parameter.EMPTY_ARRAY;
+        }
         int dist = 0;
+        if (args.length<params.length) return -1;
         // we already know the lengths are equal
         for (int i = 0; i < params.length; i++) {
             ClassNode paramType = params[i].getType();
@@ -250,7 +253,7 @@ public abstract class StaticTypeCheckingSupport {
         ClassNode vargsBase = params[params.length - 1].getType().getComponentType();
         for (int i = params.length; i < args.length; i++) {
             if (!isAssignableTo(args[i],vargsBase)) return -1;
-            else if (!args[i].equals(vargsBase)) dist++;
+            else if (!args[i].equals(vargsBase)) dist+=getDistance(args[i], vargsBase);
         }
         return dist;
     }
@@ -271,7 +274,7 @@ public abstract class StaticTypeCheckingSupport {
         ClassNode ptype = params[params.length - 1].getType().getComponentType();
         ClassNode arg = args[args.length - 1];
         if (isNumberType(ptype) && isNumberType(arg) && !ptype.equals(arg)) return -1;
-        return isAssignableTo(arg, ptype)?(ptype.equals(arg)?0:1):-1;
+        return isAssignableTo(arg, ptype)?getDistance(arg,ptype):-1;
     }
 
     /**
@@ -527,7 +530,7 @@ public abstract class StaticTypeCheckingSupport {
                return true;
            }
             if (BigInteger_TYPE==leftRedirect) {
-                return WideningCategories.isBigIntCategory(rightRedirect);
+                return WideningCategories.isBigIntCategory(getUnwrapper(rightRedirect));
             }
         }
 
@@ -742,6 +745,7 @@ public abstract class StaticTypeCheckingSupport {
         if (isPrimitiveType(receiver) && !isPrimitiveType(compare)) {
             dist = (dist+1)<<1;
         }
+        if (unwrapCompare.equals(unwrapReceiver)) return dist;
         if (receiver.isArray() && !compare.isArray()) {
             // Object[] vs Object
             dist += 256;
@@ -940,7 +944,9 @@ public abstract class StaticTypeCheckingSupport {
                     firstParamMatches = allParametersAndArgumentsMatch(firstParams, args) >= 0;
                 }
                 int lastArgMatch = isVargs(params) && firstParamMatches?lastArgMatchesVarg(params, args):-1;
-                if (lastArgMatch>=0) lastArgMatch++; // ensure exact matches are preferred over vargs
+                if (lastArgMatch>=0) {
+                    lastArgMatch += 256-params.length; // ensure exact matches are preferred over vargs
+                }
                 int dist = allPMatch>=0?Math.max(allPMatch, lastArgMatch):lastArgMatch;
                 if (dist>=0 && !actualReceiver.equals(declaringClass)) dist+=getDistance(actualReceiver, declaringClass);
                 if (dist>=0 && dist<bestDist) {
@@ -972,11 +978,11 @@ public abstract class StaticTypeCheckingSupport {
                         //      that case is handled above already
                         // (3) there is more than one argument for the vargs array
                         int dist = excessArgumentsMatchesVargsParameter(params, args);
-                        if (dist >= 0 && !actualReceiver.equals(declaringClass)) dist++;
+                        if (dist >= 0 && !actualReceiver.equals(declaringClass)) dist+=getDistance(actualReceiver, declaringClass);
                         // varargs methods must not be preferred to methods without varargs
                         // for example :
                         // int sum(int x) should be preferred to int sum(int x, int... y)
-                        dist++;
+                        dist+=256-params.length;
                         if (params.length < args.length && dist >= 0) {
                             if (dist >= 0 && dist < bestDist) {
                                 bestChoices.clear();
@@ -1272,5 +1278,17 @@ public abstract class StaticTypeCheckingSupport {
             }
         }
         return node.getSuperClass() != null && isParameterizedWithString(node.getUnresolvedSuperClass());
+    }
+
+    public static boolean missesGenericsTypes(ClassNode cn) {
+        if (cn.isArray()) return missesGenericsTypes(cn.getComponentType());
+        if (cn.redirect().isUsingGenerics() && !cn.isUsingGenerics()) return true;
+        if (cn.isUsingGenerics()) {
+            if (cn.getGenericsTypes()==null) return true;
+            for (GenericsType genericsType : cn.getGenericsTypes()) {
+                if (genericsType.isPlaceholder()) return true;
+            }
+        }
+        return false;
     }
 }

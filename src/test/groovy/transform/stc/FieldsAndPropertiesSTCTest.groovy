@@ -311,6 +311,61 @@ class FieldsAndPropertiesSTCTest extends StaticTypeCheckingTestCase {
             '''
     }
 
+    // GROOVY-5700
+    void testInferenceOfMapDotProperty() {
+        assertScript '''
+            def m = [retries: 10]
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                assert node.getNodeMetaData(INFERRED_TYPE) == Integer_TYPE
+            })
+            def r1 = m['retries']
+
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                assert node.getNodeMetaData(INFERRED_TYPE) == Integer_TYPE
+            })
+            def r2 = m.retries
+        '''
+    }
+
+    void testInferenceOfListDotProperty() {
+        assertScript '''class Foo { int x }
+            def list = [new Foo(x:1), new Foo(x:2)]
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                def iType = node.getNodeMetaData(INFERRED_TYPE)
+                assert iType == make(List)
+                assert iType.isUsingGenerics()
+                assert iType.genericsTypes[0].type == Integer_TYPE
+            })
+            def r2 = list.x
+            assert r2 == [ 1,2 ]
+        '''
+    }
+
+    void testTypeCheckerDoesNotThinkPropertyIsReadOnly() {
+        assertScript '''
+            // a base class defining a read-only property
+            class Top {
+                private String foo = 'foo'
+                String getFoo() { foo }
+                String getFooFromTop() { foo }
+            }
+
+            // a subclass defining it's own field
+            class Bottom extends Top {
+                private String foo
+
+                Bottom(String msg) {
+                    this.foo = msg
+                }
+
+                public String getFoo() { this.foo }
+            }
+
+            def b = new Bottom('bar')
+            assert b.foo == 'bar'
+            assert b.fooFromTop == 'foo'
+        '''
+    }
 
     public static class BaseClass {
         int x

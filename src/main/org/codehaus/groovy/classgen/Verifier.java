@@ -49,6 +49,7 @@ public class Verifier implements GroovyClassVisitor, Opcodes {
 
     public static final String STATIC_METACLASS_BOOL = "__$stMC";
     public static final String SWAP_INIT = "__$swapInit";
+    public static final String INITIAL_EXPRESSION = "INITIAL_EXPRESSION";
 
     public static final String __TIMESTAMP = "__timeStamp";
     public static final String __TIMESTAMP__ = "__timeStamp__239_neverHappen";
@@ -682,8 +683,19 @@ public class Verifier implements GroovyClassVisitor, Opcodes {
                 } else {
                     code = new ReturnStatement(expression);
                 }
-
                 MethodNode newMethod = new MethodNode(method.getName(), method.getModifiers(), method.getReturnType(), newParams, method.getExceptions(), code);
+                // GROOVY-5681
+                for (Expression argument : arguments.getExpressions()) {
+                    if (argument instanceof CastExpression) {
+                        argument = ((CastExpression) argument).getExpression();
+                    }
+                    if (argument instanceof ConstructorCallExpression) {
+                        ClassNode type = argument.getType();
+                        if (type instanceof InnerClassNode && ((InnerClassNode) type).isAnonymous()) {
+                            type.setEnclosingMethod(newMethod);
+                        }
+                    }
+                }
                 List<AnnotationNode> annotations = method.getAnnotations();
                 if(annotations != null) {
                     newMethod.addAnnotations(annotations);
@@ -786,7 +798,8 @@ public class Verifier implements GroovyClassVisitor, Opcodes {
         }
 
         for (Parameter parameter : parameters) {
-            // remove default expression
+            // remove default expression and store it as node metadata
+            parameter.putNodeMetaData(Verifier.INITIAL_EXPRESSION, parameter.getInitialExpression());
             parameter.setInitialExpression(null);
         }
     }
@@ -1266,11 +1279,7 @@ public class Verifier implements GroovyClassVisitor, Opcodes {
 
     private boolean isAssignable(ClassNode node, ClassNode testNode) {
         if (testNode.isInterface()) {
-            if (node.isInterface()) {
-                if (node.isDerivedFrom(testNode)) return true;
-            } else {
-                if (node.implementsInterface(testNode)) return true;
-            }
+            if (node.equals(testNode) || node.implementsInterface(testNode)) return true;
         } else {
             if (node.isDerivedFrom(testNode)) return true;
         }

@@ -812,6 +812,124 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
         '''
     }
 
+    // GROOVY-5650
+    void testRegressionInGenericsTypeInference() {
+        assertScript '''import groovy.transform.stc.GenericsSTCTest.JavaClassSupport as JavaClass
+        List<JavaClass.StringContainer> containers = new ArrayList<>();
+        containers.add(new JavaClass.StringContainer());
+        List<String> strings = JavaClass.unwrap(containers);
+        '''
+    }
+
+    // In Groovy, we do not throw warnings (in general) and in that situation, not for unchecked
+    // assignments like in Java
+    // In the following test, the LHS of the assignment uses generics, while the RHS does not.
+    // As we have the concept of flow typing too, we are facing a problem: what inferred type is the RHS?
+    void testUncheckedAssignment() {
+        assertScript '''
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                def ift = node.getNodeMetaData(INFERRED_TYPE)
+                assert ift == make(List)
+                assert ift.isUsingGenerics()
+                def gts = ift.genericsTypes
+                assert gts.length==1
+                assert gts[0].type == STRING_TYPE
+            })
+            List<String> list = (List) null
+        '''
+    }
+
+    void testUncheckedAssignmentWithSuperInterface() {
+        assertScript '''
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                def ift = node.getNodeMetaData(INFERRED_TYPE)
+                assert ift == make(List)
+                assert ift.isUsingGenerics()
+                def gts = ift.genericsTypes
+                assert gts.length==1
+                assert gts[0].type == STRING_TYPE
+            })
+            Iterable<String> list = (List) null
+        '''
+    }
+
+    void testIncompatibleGenericsForTwoArguments() {
+        shouldFailWithMessages '''
+            public <T> void printEqual(T arg1, T arg2) {
+                println arg1 == arg2
+            }
+            printEqual(1, 'foo')
+        ''', '#printEqual(java.lang.Object <T>, java.lang.Object <T>) with arguments [int, java.lang.String]'
+    }
+    void testIncompatibleGenericsForTwoArgumentsUsingEmbeddedPlaceholder() {
+        shouldFailWithMessages '''
+            public <T> void printEqual(T arg1, List<T> arg2) {
+                println arg1 == arg2
+            }
+            printEqual(1, ['foo'])
+        ''', '#printEqual(java.lang.Object <T>, java.util.List <T>) with arguments [int, java.util.List <java.lang.String>]'
+    }
+
+    void testGroovy5748() {
+        assertScript '''
+            interface IStack<T> {
+                INonEmptyStack<T, ? extends IStack<T>> push(T x)
+            }
+
+            interface IEmptyStack<T> extends IStack<T> {
+                INonEmptyStack<T, IEmptyStack<T>> push(T x)
+            }
+
+            interface INonEmptyStack<T, TStackBeneath extends IStack<T>> extends IStack<T> {
+                T getTop()
+
+                TStackBeneath pop()
+
+                INonEmptyStack<T, INonEmptyStack<T, TStackBeneath>> push(T x)
+            }
+
+            class EmptyStack<T> implements IEmptyStack<T> {
+                INonEmptyStack<T, IEmptyStack<T>> push(T x) {
+                    new NonEmptyStack<T, IEmptyStack<T>>(x, this)
+                }
+            }
+
+            class NonEmptyStack<T, TStackBeneath extends IStack<T>>
+                    implements INonEmptyStack<T, TStackBeneath> {
+                private final TStackBeneath stackBeneathTop;
+                private final T top
+
+                NonEmptyStack(T top, TStackBeneath stackBeneathTop) {
+                    this.top = top
+                    this.stackBeneathTop = stackBeneathTop
+                }
+
+                T getTop() {
+                    top
+                }
+
+                TStackBeneath pop() {
+                    stackBeneathTop
+                }
+
+                INonEmptyStack<T, INonEmptyStack<T, TStackBeneath>> push(T x) {
+                    new NonEmptyStack<T, INonEmptyStack<T, TStackBeneath>>(x, this)
+                }
+            }
+
+            final IStack<Integer> stack = new EmptyStack<Integer>()
+
+            def oneInteger = stack.push(1)
+            assert oneInteger.getTop() == 1
+
+            def twoIntegers = stack.push(1).push(2)
+            assert twoIntegers.getTop() == 2
+
+            def oneIntegerAgain = stack.push(1).push(2).pop()
+            assert oneIntegerAgain.getTop() == 1 // BOOM!!!!
+        '''
+    }
+
     static class MyList extends LinkedList<String> {}
 
     public static class ClassA<T> {
@@ -821,6 +939,17 @@ class GenericsSTCTest extends StaticTypeCheckingTestCase {
 
         public <X> Class<X> bar(Class<T> classType) {
             return null;
+        }
+    }
+
+    public static class JavaClassSupport {
+        public static class Container<T> {
+        }
+
+        public static class StringContainer extends Container<String> {
+        }
+
+        public static <T> List<T> unwrap(Collection<? extends Container<T>> list) {
         }
     }
 

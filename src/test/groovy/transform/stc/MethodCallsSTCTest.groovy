@@ -720,6 +720,119 @@ class MethodCallsSTCTest extends StaticTypeCheckingTestCase {
         '''
     }
 
+    void testSpreadArgsForbiddenInMethodCall() {
+        shouldFailWithMessages '''
+            void foo(String a, String b, int c, double d1, double d2) {}
+            void bar(String[] args, int c, double[] nums) {
+                foo(*args, c, *nums)
+            }
+        ''',
+                'The spread operator cannot be used as argument of method or closure calls with static type checking because the number of arguments cannot be determined at compile time',
+                'The spread operator cannot be used as argument of method or closure calls with static type checking because the number of arguments cannot be determined at compile time',
+                'Cannot find matching method'
+    }
+
+    void testSpreadArgsForbiddenInStaticMethodCall() {
+        shouldFailWithMessages '''
+            static void foo(String a, String b, int c, double d1, double d2) {}
+            static void bar(String[] args, int c, double[] nums) {
+                foo(*args, c, *nums)
+            }
+        ''',
+                'The spread operator cannot be used as argument of method or closure calls with static type checking because the number of arguments cannot be determined at compile time',
+                'The spread operator cannot be used as argument of method or closure calls with static type checking because the number of arguments cannot be determined at compile time',
+                'Cannot find matching method'
+    }
+
+    void testSpreadArgsForbiddenInConstructorCall() {
+        shouldFailWithMessages '''
+            class SpreadInCtor {
+                SpreadInCtor(String a, String b) { }
+            }
+
+            new SpreadInCtor(*['A', 'B'])
+        ''',
+                'The spread operator cannot be used as argument of method or closure calls with static type checking because the number of arguments cannot be determined at compile time',
+                'Cannot find matching method'
+    }
+
+    void testSpreadArgsForbiddenInClosureCall() {
+        shouldFailWithMessages '''
+            def closure = { String a, String b, String c -> println "$a $b $c" }
+            def strings = ['A', 'B', 'C']
+            closure(*strings)
+        ''',
+                'The spread operator cannot be used as argument of method or closure calls with static type checking because the number of arguments cannot be determined at compile time'
+    }
+
+    void testBoxingShouldCostMore() {
+        assertScript '''
+            int foo(int x) { 1 }
+            int foo(Integer x) { 2 }
+            int bar() {
+                foo(1)
+            }
+            assert bar() == 1
+        '''
+    }
+
+    // GROOVY-5645
+    void testSuperCallWithVargs() {
+        assertScript '''
+            class Base {
+                int foo(int x, Object... args) { 1 }
+                int foo(Object... args) { 2 }
+            }
+            class Child extends Base {
+                void bar() {
+                    assert foo(1, 'a') == 1
+                    super.foo(1, 'a') == 1
+                }
+            }
+            new Child().bar()
+        '''
+    }
+
+    void testVargsSelection() {
+        assertScript '''
+            int foo(int x, Object... args) { 1 }
+            int foo(Object... args) { 2 }
+            assert foo(1) == 1
+            assert foo() == 2
+            assert foo(1,2) == 1
+        '''
+    }
+
+    // GROOVY-5702
+    void testShouldFindInterfaceMethod() {
+        assertScript '''
+
+            interface OtherCloseable {
+                void close()
+            }
+
+            abstract class MyCloseableChannel implements OtherCloseable {  }
+
+            class Test {
+                static void test(MyCloseableChannel mc) {
+                    mc?.close()
+                }
+            }
+
+            Test.test(null)
+        '''
+    }
+    void testShouldFindInheritedInterfaceMethod() {
+        assertScript '''
+            interface Top { void close() }
+            interface Middle extends Top {}
+            interface Bottom extends Middle {}
+            void foo(Bottom obj) {
+               obj.close()
+            }
+        '''
+    }
+
     static class MyMethodCallTestClass {
 
         static int mul(int... args) { args.toList().inject(1) { x,y -> x*y } }

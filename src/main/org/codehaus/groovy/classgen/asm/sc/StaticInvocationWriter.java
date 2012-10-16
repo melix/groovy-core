@@ -26,6 +26,7 @@ import org.codehaus.groovy.ast.expr.*;
 import org.codehaus.groovy.ast.stmt.ExpressionStatement;
 import org.codehaus.groovy.ast.stmt.ForStatement;
 import org.codehaus.groovy.classgen.AsmClassGenerator;
+import org.codehaus.groovy.classgen.Verifier;
 import org.codehaus.groovy.classgen.asm.*;
 import org.codehaus.groovy.runtime.InvokerHelper;
 import org.codehaus.groovy.syntax.SyntaxException;
@@ -172,12 +173,8 @@ public class StaticInvocationWriter extends InvocationWriter {
                     }
                 }
                 if (declaringClass != classNode) {
-                    controller.getSourceUnit().addError(new SyntaxException(
-                            "Cannot call private method " + (target.isStatic() ? "static " : "") +
-                                    declaringClass.toString(false) + "#" + target.getName() + " from class " + classNode.toString(false),
-                            receiver.getLineNumber(),
-                            receiver.getColumnNumber()
-                    ));
+                    controller.getSourceUnit().addError(new SyntaxException("Cannot call private method " + (target.isStatic() ? "static " : "") +
+                                                        declaringClass.toString(false) + "#" + target.getName() + " from class " + classNode.toString(false), receiver.getLineNumber(), receiver.getColumnNumber(), receiver.getLastLineNumber(), receiver.getLastColumnNumber()));
                 }
             }
             if (target != null && receiver != null) {
@@ -205,9 +202,16 @@ public class StaticInvocationWriter extends InvocationWriter {
         if (para.length == 0) return;
         ClassNode lastParaType = para[para.length - 1].getOriginType();
         AsmClassGenerator acg = controller.getAcg();
+        TypeChooser typeChooser = controller.getTypeChooser();
         OperandStack operandStack = controller.getOperandStack();
+        ClassNode lastArgType = argumentList.size()>0?
+                typeChooser.resolveType(argumentList.get(argumentList.size()-1), controller.getClassNode()):null;
         if (lastParaType.isArray()
-                && (argumentList.size() > para.length || argumentList.size() == para.length - 1 || !argumentList.get(para.length - 1).getType().isArray())) {
+                && ((argumentList.size() > para.length)
+                || ((argumentList.size() == (para.length - 1)) && !lastParaType.equals(lastArgType))
+                || ((argumentList.size() == para.length && lastArgType!=null && !lastArgType.isArray())
+                    && StaticTypeCheckingSupport.implementsInterfaceOrIsSubclassOf(lastArgType,lastParaType.getComponentType())))
+                ) {
             int stackLen = operandStack.getStackLength() + argumentList.size();
             MethodVisitor mv = controller.getMethodVisitor();
             MethodVisitor orig = mv;
@@ -249,7 +253,6 @@ public class StaticInvocationWriter extends InvocationWriter {
             }
         } else {
             // method call with default arguments
-            TypeChooser typeChooser = controller.getTypeChooser();
             ClassNode classNode = controller.getClassNode();
             Expression[] arguments = new Expression[para.length];
             for (int i = 0, j = 0; i < para.length; i++) {
@@ -259,6 +262,9 @@ public class StaticInvocationWriter extends InvocationWriter {
                 Expression initialExpression = (Expression) curParam.getNodeMetaData(StaticTypesMarker.INITIAL_EXPRESSION);
                 if (initialExpression == null && curParam.hasInitialExpression())
                     initialExpression = curParam.getInitialExpression();
+                if (initialExpression == null && curParam.getNodeMetaData(Verifier.INITIAL_EXPRESSION)!=null) {
+                    initialExpression = (Expression) curParam.getNodeMetaData(Verifier.INITIAL_EXPRESSION);
+                }
                 ClassNode curArgType = curArg == null ? null : typeChooser.resolveType(curArg, classNode);
 
                 if (initialExpression != null && !compatibleArgumentType(curArgType, curParamType)) {

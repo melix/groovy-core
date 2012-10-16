@@ -303,5 +303,162 @@ class BugsStaticCompileTest extends BugsSTCTest {
         assert abs(a?.x) == 1
         '''
     }
+
+    void testClosureAsInterfaceArgument() {
+        assertScript '''
+                Closure c = { Integer x, Integer y -> x <=> y }
+                def list = [ 3,1,5,2,4 ]
+                assert list.sort(c) == [1,2,3,4,5]
+            '''
+    }
+
+    void testInferredTypeForInteger() {
+        assertScript '''
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                assert node.getNodeMetaData(INFERRED_TYPE) == Integer_TYPE
+            })
+            Integer x = 1
+        '''
+    }
+
+    // GROOVY-5671
+    void testPostfixIncPrimitiveInteger() {
+        assertScript '''
+            int x = 0
+            x++
+            x++
+            assert x == 2
+            assert x++ == 2
+            assert x == 3
+        '''
+    }
+
+    void testPostfixIncInteger() {
+        assertScript '''
+                Integer x = 0
+                x++
+                x++
+                assert x == 2
+                assert x++ == 2
+                assert x == 3
+            '''
+    }
+
+    void testPostfixDecInt() {
+        assertScript '''
+                int x = 0
+                x--
+                x--
+                assert x == -2
+                assert x-- == -2
+                assert x == -3
+            '''
+    }
+
+    void testPostfixDecInteger() {
+        assertScript '''
+                Integer x = 0
+                x--
+                x--
+                assert x == -2
+                assert x-- == -2
+                assert x == -3
+            '''
+    }
+
+    void testPrefixIncPrimitiveInteger() {
+        assertScript '''
+            int x = 0
+            ++x
+            ++x
+            assert x == 2
+            assert ++x == 3
+            assert x == 3
+        '''
+    }
+
+    void testPrefixIncInteger() {
+        assertScript '''
+                Integer x = 0
+                ++x
+                ++x
+                assert x == 2
+                assert ++x == 3
+                assert x == 3
+            '''
+    }
+
+    void testPrefixDecInt() {
+        assertScript '''
+                int x = 0
+                --x
+                --x
+                assert --x == -3
+                assert x == -3
+            '''
+    }
+
+    void testPrefixDecInteger() {
+        assertScript '''
+                Integer x = 0
+                --x
+                --x
+                assert --x == -3
+                assert x == -3
+            '''
+    }
+
+    void testShouldSkipSpreadOperator() {
+        new GroovyShell().evaluate '''import groovy.transform.TypeCheckingMode
+            import groovy.transform.CompileStatic
+
+            @CompileStatic // top level must be @CS
+            class Foo {
+                @CompileStatic(TypeCheckingMode.SKIP)
+                static void foo(fun, args) {
+                    new Runnable() { // create an anonymous class which should *not* be visited
+                        void run() {
+                            fun(*args) // spread operator is disallowed with STC/SC, but SKIP should prevent from an error
+                        }
+                    }
+                }
+            }
+            new Foo()
+        '''
+    }
+
+    // GROOVY-5672
+    void testTypeCheckedPlusCompileStatic() {
+        new GroovyShell().evaluate '''import groovy.transform.CompileStatic
+        import groovy.transform.TypeChecked
+
+        @TypeChecked
+        @CompileStatic
+        class SampleClass {
+            def a = "some string"
+            def b = a.toString()
+        }
+        new SampleClass()
+        '''
+    }
+
+    void testSubclassShouldNotThrowArrayIndexOutOfBoundsException() {
+        assertScript '''
+            // The error only shows up if the subclass is compiled *before* the superclass
+            class Subclass extends Z {
+                public Subclass(double x, double y, double z) {
+                    super(x,y,z)
+                }
+            }
+            class Z {
+               double x, y, z
+
+                public Z(double x, double y, double z) { this.x = x; this.y = y; this.z = z }
+
+                public Z negative() { return new Z(-x, -y, -z) }
+            }
+            new Subclass(0,0,0)
+        '''
+    }
 }
 
