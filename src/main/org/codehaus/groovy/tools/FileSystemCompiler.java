@@ -1,5 +1,5 @@
 /*
- * Copyright 2003-2010 the original author or authors.
+ * Copyright 2003-2012 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,8 +34,6 @@ import java.util.*;
 
 /**
  * Command-line compiler (aka. <tt>groovyc</tt>).
- *
- * @version $Id$
  */
 public class FileSystemCompiler {
     private final CompilationUnit unit;
@@ -72,7 +70,7 @@ public class FileSystemCompiler {
     public static void displayVersion() {
         String version = GroovySystem.getVersion();
         System.err.println("Groovy compiler version " + version);
-        System.err.println("Copyright 2003-2011 The Codehaus. http://groovy.codehaus.org/");
+        System.err.println("Copyright 2003-2012 The Codehaus. http://groovy.codehaus.org/");
         System.err.println("");
     }
 
@@ -106,7 +104,7 @@ public class FileSystemCompiler {
     public static void commandLineCompile(String[] args) throws Exception {
         commandLineCompile(args, true);
     }
-    
+
     /**
      * Same as main(args) except that exceptions are thrown out instead of causing
      * the VM to exit and the lookup for .groovy files can be controlled
@@ -152,32 +150,32 @@ public class FileSystemCompiler {
     /**
      * Primary entry point for compiling from the command line
      * (using the groovyc script).
-     *
+     * <p/>
      * If calling inside a process and you don't want the JVM to exit on an
      * error call commandLineCompile(String[]), which this method simply wraps
-     * 
+     *
      * @param args command line arguments
      */
     public static void main(String[] args) {
         commandLineCompileWithErrorHandling(args, true);
     }
-    
+
     /**
      * Primary entry point for compiling from the command line
      * (using the groovyc script).
-     *
+     * <p/>
      * If calling inside a process and you don't want the JVM to exit on an
      * error call commandLineCompile(String[]), which this method simply wraps
-     * 
-     * @param   args command line arguments
-     * @param   lookupUnnamedFiles do a lookup for .groovy files not part of 
-     *          the given list of files to compile
+     *
+     * @param args               command line arguments
+     * @param lookupUnnamedFiles do a lookup for .groovy files not part of
+     *                           the given list of files to compile
      */
     public static void commandLineCompileWithErrorHandling(String[] args, boolean lookupUnnamedFiles) {
         try {
             commandLineCompile(args, lookupUnnamedFiles);
-        } catch( Throwable e ) {
-            new ErrorReporter( e, displayStackTraceOnError).write( System.err );
+        } catch (Throwable e) {
+            new ErrorReporter(e, displayStackTraceOnError).write(System.err);
             System.exit(1);
         }
     }
@@ -185,14 +183,13 @@ public class FileSystemCompiler {
     public static void doCompilation(CompilerConfiguration configuration, CompilationUnit unit, String[] filenames) throws Exception {
         doCompilation(configuration, unit, filenames, true);
     }
-    
+
     public static void doCompilation(CompilerConfiguration configuration, CompilationUnit unit, String[] filenames, boolean lookupUnnamedFiles) throws Exception {
         File tmpDir = null;
         // if there are any joint compilation options set stubDir if not set
         try {
             if ((configuration.getJointCompilationOptions() != null)
-                && !configuration.getJointCompilationOptions().containsKey("stubDir"))
-            {
+                    && !configuration.getJointCompilationOptions().containsKey("stubDir")) {
                 tmpDir = createTempDir();
                 configuration.getJointCompilationOptions().put("stubDir", tmpDir);
             }
@@ -211,7 +208,7 @@ public class FileSystemCompiler {
                         return null;
                     }
                 });
-            }  
+            }
             compiler.compile(filenames);
         } finally {
             try {
@@ -267,6 +264,10 @@ public class FileSystemCompiler {
             configuration.setSourceEncoding(cli.getOptionValue("encoding"));
         }
 
+        if (cli.hasOption("baseScript")) {
+            configuration.setScriptBaseClass(cli.getOptionValue("baseScript"));
+        }
+
         // joint compilation parameters
         if (cli.hasOption('j')) {
             Map<String, Object> compilerOptions = new HashMap<String, Object>();
@@ -279,7 +280,7 @@ public class FileSystemCompiler {
 
             configuration.setJointCompilationOptions(compilerOptions);
         }
-        
+
         if (cli.hasOption("indy")) {
             configuration.getOptimizationOptions().put("int", false);
             configuration.getOptimizationOptions().put("indy", true);
@@ -315,6 +316,7 @@ public class FileSystemCompiler {
         options.addOption(OptionBuilder.withLongOpt("version").withDescription("Print the version").create('v'));
         options.addOption(OptionBuilder.withLongOpt("exception").withDescription("Print stack trace on error").create('e'));
         options.addOption(OptionBuilder.withLongOpt("jointCompilation").withDescription("Attach javac compiler to compile .java files").create('j'));
+        options.addOption(OptionBuilder.withLongOpt("baseScript").hasArg().withArgName("class").withDescription("Base class name for scripts (must derive from Script)").create('b'));
 
         options.addOption(
                 OptionBuilder.withArgName("property=value")
@@ -327,7 +329,7 @@ public class FileSystemCompiler {
                         .hasArg()
                         .withDescription("passed to javac for joint compilation")
                         .create("F"));
-        
+
         options.addOption(OptionBuilder.withLongOpt("indy").withDescription("enables compilation using invokedynamic").create());
         options.addOption(OptionBuilder.withLongOpt("configurator").hasArg().withDescription("A script for tweaking the configuration options").create());
         return options;
@@ -336,8 +338,8 @@ public class FileSystemCompiler {
     public static File createTempDir() throws IOException {
         final int MAXTRIES = 3;
         int accessDeniedCounter = 0;
-        File tempFile=null;
-        for (int i=0; i<MAXTRIES; i++) {
+        File tempFile = null;
+        for (int i = 0; i < MAXTRIES; i++) {
             try {
                 tempFile = File.createTempFile("groovy-generated-", "-java-source");
                 tempFile.delete();
@@ -346,24 +348,26 @@ public class FileSystemCompiler {
             } catch (IOException ioe) {
                 if (ioe.getMessage().startsWith("Access is denied")) {
                     accessDeniedCounter++;
-                    try { Thread.sleep(100); } catch (InterruptedException e) {}
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        /* ignore */
+                    }
                 }
-                if (i==MAXTRIES-1) {
-                    if (accessDeniedCounter==MAXTRIES) {
-                        String msg = 
-                            "Access is denied.\nWe tried " +
-                            + accessDeniedCounter+
-                            " times to create a temporary directory"+
-                            " and failed each time. If you are on Windows"+
-                            " you are possibly victim to"+
-                            " http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6325169. "+
-                            " this is no bug in Groovy.";
+                if (i == MAXTRIES - 1) {
+                    if (accessDeniedCounter == MAXTRIES) {
+                        String msg =
+                                "Access is denied.\nWe tried " + accessDeniedCounter +
+                                        " times to create a temporary directory" +
+                                        " and failed each time. If you are on Windows" +
+                                        " you are possibly victim to" +
+                                        " http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6325169. " +
+                                        " this is not a bug in Groovy.";
                         throw new IOException(msg);
                     } else {
                         throw ioe;
                     }
                 }
-                continue;
             }
         }
         return tempFile;

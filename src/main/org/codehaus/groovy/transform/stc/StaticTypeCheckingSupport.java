@@ -17,18 +17,23 @@ package org.codehaus.groovy.transform.stc;
 
 import groovy.lang.GroovySystem;
 import groovy.lang.MetaClassRegistry;
+import org.codehaus.groovy.GroovyBugError;
 import org.codehaus.groovy.ast.*;
 import org.codehaus.groovy.ast.expr.*;
+import org.codehaus.groovy.ast.stmt.ReturnStatement;
 import org.codehaus.groovy.ast.tools.GenericsUtils;
 import org.codehaus.groovy.ast.tools.WideningCategories;
+import org.codehaus.groovy.control.CompilationUnit;
 import org.codehaus.groovy.runtime.DefaultGroovyMethods;
 import org.codehaus.groovy.runtime.DefaultGroovyStaticMethods;
 import org.codehaus.groovy.runtime.m12n.ExtensionModule;
 import org.codehaus.groovy.runtime.m12n.ExtensionModuleRegistry;
 import org.codehaus.groovy.runtime.m12n.MetaInfExtensionModule;
 import org.codehaus.groovy.runtime.metaclass.MetaClassRegistryImpl;
+import org.codehaus.groovy.tools.GroovyClass;
 import org.objectweb.asm.Opcodes;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
@@ -295,28 +300,28 @@ public abstract class StaticTypeCheckingSupport {
             return type.isDerivedFrom(Number_TYPE);
         }
         if (ClassHelper.Float_TYPE==toBeAssignedTo) {
-            return type.isDerivedFrom(Number_TYPE) && ClassHelper.Double_TYPE!=type;
+            return type.isDerivedFrom(Number_TYPE) && ClassHelper.Double_TYPE!=type.redirect();
         }
         if (ClassHelper.Long_TYPE==toBeAssignedTo) {
             return type.isDerivedFrom(Number_TYPE)
-                    && ClassHelper.Double_TYPE!=type
-                    && ClassHelper.Float_TYPE!=type;
+                    && ClassHelper.Double_TYPE!=type.redirect()
+                    && ClassHelper.Float_TYPE!=type.redirect();
         }
         if (ClassHelper.Integer_TYPE==toBeAssignedTo) {
             return type.isDerivedFrom(Number_TYPE)
-                    && ClassHelper.Double_TYPE!=type
-                    && ClassHelper.Float_TYPE!=type
-                    && ClassHelper.Long_TYPE!=type;
+                    && ClassHelper.Double_TYPE!=type.redirect()
+                    && ClassHelper.Float_TYPE!=type.redirect()
+                    && ClassHelper.Long_TYPE!=type.redirect();
         }
         if (ClassHelper.Short_TYPE==toBeAssignedTo) {
             return type.isDerivedFrom(Number_TYPE)
-                    && ClassHelper.Double_TYPE!=type
-                    && ClassHelper.Float_TYPE!=type
-                    && ClassHelper.Long_TYPE!=type
-                    && ClassHelper.Integer_TYPE!=type;
+                    && ClassHelper.Double_TYPE!=type.redirect()
+                    && ClassHelper.Float_TYPE!=type.redirect()
+                    && ClassHelper.Long_TYPE!=type.redirect()
+                    && ClassHelper.Integer_TYPE!=type.redirect();
         }
         if (ClassHelper.Byte_TYPE==toBeAssignedTo) {
-            return type == ClassHelper.Byte_TYPE;
+            return type.redirect() == ClassHelper.Byte_TYPE;
         }
         if (type.isArray() && toBeAssignedTo.isArray()) {
             return isAssignableTo(type.getComponentType(),toBeAssignedTo.getComponentType());
@@ -544,13 +549,7 @@ public abstract class StaticTypeCheckingSupport {
 
         // anything can be assigned to an Object, String, boolean, Boolean
         // or Class typed variable
-        if (leftRedirect == OBJECT_TYPE ||
-                leftRedirect == STRING_TYPE ||
-                leftRedirect == boolean_TYPE ||
-                leftRedirect == Boolean_TYPE ||
-                leftRedirect == CLASS_Type) {
-            return true;
-        }
+        if (isWildcardLeftHandSide(leftRedirect)) return true;
 
         // char as left expression
         if (leftRedirect == char_TYPE && rightRedirect==STRING_TYPE) {
@@ -598,6 +597,23 @@ public abstract class StaticTypeCheckingSupport {
         }
 
         if (GROOVY_OBJECT_TYPE.equals(leftRedirect) && isBeingCompiled(right)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Tells if a class is one of the "accept all" classes as the left hand side of an
+     * assignment.
+     * @param node the classnode to test
+     * @return true if it's an Object, String, boolean, Boolean or Class.
+     */
+    public static boolean isWildcardLeftHandSide(final ClassNode node) {
+        if (OBJECT_TYPE.equals(node) ||
+            STRING_TYPE.equals(node) ||
+            boolean_TYPE.equals(node) ||
+            Boolean_TYPE.equals(node) ||
+            CLASS_Type.equals(node)) {
             return true;
         }
         return false;
@@ -1030,6 +1046,15 @@ public abstract class StaticTypeCheckingSupport {
                             } else if (twoRT.isDerivedFrom(oneRT) || twoRT.implementsInterface(oneRT)) {
                                 toBeRemoved.add(one);
                             }
+                        } else {
+                            // this is an imperfect solution to determining if two methods are
+                            // equivalent, for example String#compareTo(Object) and String#compareTo(String)
+                            // in that case, Java marks the Object version as synthetic
+                            if (one.isSynthetic() && !two.isSynthetic()) {
+                                toBeRemoved.add(one);
+                            } else if (two.isSynthetic() && !one.isSynthetic()) {
+                                toBeRemoved.add(two);
+                            }
                         }
                     }
                 }                
@@ -1290,5 +1315,37 @@ public abstract class StaticTypeCheckingSupport {
             }
         }
         return false;
+    }
+
+    /**
+     * A helper method that can be used to evaluate expressions as found in annotation
+     * parameters. For example, it will evaluate a constant, be it referenced directly as
+     * an integer or as a reference to a field.
+     *
+     * If this method throws an exception, then the expression cannot be evaluated on its own.
+     *
+     * @param expr the expression to be evaluated
+     * @return the result of the expression
+     */
+    public static Object evaluateExpression(Expression expr) {
+        String className = "Expression$" + UUID.randomUUID().toString().replace('-', '$');
+        ClassNode node = new ClassNode(className, Opcodes.ACC_PUBLIC, ClassHelper.OBJECT_TYPE);
+        ReturnStatement code = new ReturnStatement(expr);
+        node.addMethod(new MethodNode("eval", Opcodes.ACC_PUBLIC+Opcodes.ACC_STATIC, ClassHelper.OBJECT_TYPE, Parameter.EMPTY_ARRAY, ClassNode.EMPTY_ARRAY, code));
+        CompilationUnit cu = new CompilationUnit();
+        cu.addClassNode(node);
+        cu.compile();
+        @SuppressWarnings("unchecked")
+        List<GroovyClass> classes = (List<GroovyClass>)cu.getClasses();
+        Class aClass = cu.getClassLoader().defineClass(className, classes.get(0).getBytes());
+        try {
+            return aClass.getMethod("eval").invoke(null);
+        } catch (IllegalAccessException e) {
+            throw new GroovyBugError(e);
+        } catch (InvocationTargetException e) {
+            throw new GroovyBugError(e);
+        } catch (NoSuchMethodException e) {
+            throw new GroovyBugError(e);
+        }
     }
 }

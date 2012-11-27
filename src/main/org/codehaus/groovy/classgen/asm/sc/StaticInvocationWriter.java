@@ -72,9 +72,19 @@ public class StaticInvocationWriter extends InvocationWriter {
 
     private final WriterController controller;
 
+    private MethodCallExpression currentCall;
+
     public StaticInvocationWriter(WriterController wc) {
         super(wc);
         controller = wc;
+    }
+
+    @Override
+    public void writeInvokeMethod(final MethodCallExpression call) {
+        MethodCallExpression old = currentCall;
+        currentCall = call;
+        super.writeInvokeMethod(call);
+        currentCall = old;
     }
 
     @Override
@@ -210,7 +220,8 @@ public class StaticInvocationWriter extends InvocationWriter {
                 && ((argumentList.size() > para.length)
                 || ((argumentList.size() == (para.length - 1)) && !lastParaType.equals(lastArgType))
                 || ((argumentList.size() == para.length && lastArgType!=null && !lastArgType.isArray())
-                    && StaticTypeCheckingSupport.implementsInterfaceOrIsSubclassOf(lastArgType,lastParaType.getComponentType())))
+                    && (StaticTypeCheckingSupport.implementsInterfaceOrIsSubclassOf(lastArgType,lastParaType.getComponentType())))
+                        || ClassHelper.GSTRING_TYPE.equals(lastArgType) && ClassHelper.STRING_TYPE.equals(lastParaType.getComponentType()))
                 ) {
             int stackLen = operandStack.getStackLength() + argumentList.size();
             MethodVisitor mv = controller.getMethodVisitor();
@@ -474,5 +485,9 @@ public class StaticInvocationWriter extends InvocationWriter {
                 controller.getOperandStack().replace(type);
             }
         }
+    }
+
+    public MethodCallExpression getCurrentCall() {
+        return currentCall;
     }
 }

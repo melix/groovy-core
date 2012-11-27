@@ -36,6 +36,7 @@ import java.util.*;
 import static org.codehaus.groovy.ast.ClassHelper.*;
 import static org.codehaus.groovy.transform.stc.StaticTypeCheckingSupport.chooseBestMethod;
 import static org.codehaus.groovy.transform.stc.StaticTypeCheckingSupport.findDGMMethodsByNameAndArguments;
+import static org.codehaus.groovy.transform.stc.StaticTypeCheckingSupport.implementsInterfaceOrIsSubclassOf;
 
 /**
  * A call site writer which replaces call site caching with static calls. This means that the generated code
@@ -49,6 +50,7 @@ public class StaticTypesCallSiteWriter extends CallSiteWriter implements Opcodes
     private static final MethodNode GROOVYOBJECT_GETPROPERTY_METHOD = GROOVY_OBJECT_TYPE.getMethod("getProperty", new Parameter[]{new Parameter(STRING_TYPE, "propertyName")});
     private static final ClassNode COLLECTION_TYPE = make(Collection.class);
     private static final MethodNode COLLECTION_SIZE_METHOD = COLLECTION_TYPE.getMethod("size", Parameter.EMPTY_ARRAY);
+    private static final MethodNode MAP_GET_METHOD = MAP_TYPE.getMethod("get", new Parameter[] { new Parameter(OBJECT_TYPE, "key")});
 
     private WriterController controller;
 
@@ -310,11 +312,32 @@ public class StaticTypesCallSiteWriter extends CallSiteWriter implements Opcodes
         }
         
         String property = methodName;
-        if (classNode.getNodeMetaData(StaticCompilationMetadataKeys.WITH_CLOSURE)!=null && "owner".equals(property)) {
-            // the current class node is a closure used in a "with"
-            property = "delegate";
+        if (implicitThis) {
+            if (controller.getInvocationWriter() instanceof StaticInvocationWriter) {
+                MethodCallExpression currentCall = ((StaticInvocationWriter) controller.getInvocationWriter()).getCurrentCall();
+                if (currentCall != null && currentCall.getNodeMetaData(StaticTypesMarker.IMPLICIT_RECEIVER) != null) {
+                    property = (String) currentCall.getNodeMetaData(StaticTypesMarker.IMPLICIT_RECEIVER);
+                    String[] props = property.split("\\.");
+                    BytecodeExpression thisLoader = new BytecodeExpression() {
+                        @Override
+                        public void visit(final MethodVisitor mv) {
+                            mv.visitVarInsn(ALOAD, 0); // load this
+                        }
+                    };
+                    thisLoader.setType(CLOSURE_TYPE);
+                    Expression pexp = new PropertyExpression(thisLoader, new ConstantExpression(props[0]), safe);
+                    for (int i = 1, propsLength = props.length; i < propsLength; i++) {
+                        final String prop = props[i];
+                        pexp.putNodeMetaData(StaticTypesMarker.INFERRED_TYPE, CLOSURE_TYPE);
+                        pexp = new PropertyExpression(pexp, prop);
+                    }
+                    pexp.visit(controller.getAcg());
+                    return;
+                }
+            }
         }
-        
+
+
         if (makeGetPropertyWithGetter(receiver, receiverType, property, safe, implicitThis)) return;
         if (makeGetField(receiver, receiverType, property, implicitThis, samePackages(receiverType.getPackageName(), classNode.getPackageName()))) return;
 
@@ -341,6 +364,9 @@ public class StaticTypesCallSiteWriter extends CallSiteWriter implements Opcodes
         if (getterNode==null) {
             getterName = "is" + MetaClassHelper.capitalize(methodName);
             getterNode = receiverType.getGetterMethod(getterName);
+        }
+        if (getterNode!=null && receiver instanceof ClassExpression && !CLASS_Type.equals(receiverType) && !getterNode.isStatic()) {
+            return false;
         }
 
         // GROOVY-5561: if two files are compiled in the same source unit
@@ -510,6 +536,19 @@ public class StaticTypesCallSiteWriter extends CallSiteWriter implements Opcodes
             call.setSourcePosition(arguments);
             call.setImplicitThis(false);
             call.setMethodTarget(methodNode);
+            call.visit(controller.getAcg());
+            return;
+        }
+        if (implementsInterfaceOrIsSubclassOf(rType, MAP_TYPE)) {
+            // fallback to Map#get
+            MethodCallExpression call = new MethodCallExpression(
+                    receiver,
+                    "get",
+                    arguments
+            );
+            call.setMethodTarget(MAP_GET_METHOD);
+            call.setSourcePosition(arguments);
+            call.setImplicitThis(false);
             call.visit(controller.getAcg());
             return;
         }
