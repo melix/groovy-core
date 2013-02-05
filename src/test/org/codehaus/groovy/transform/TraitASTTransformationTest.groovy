@@ -127,6 +127,23 @@ class TraitASTTransformationTest extends GroovyTestCase {
         '''
     }
 
+    void testTraitWithConstructor() {
+        shouldFail {
+            assertScript '''import groovy.transform.Trait
+            @Trait
+            abstract class MyTrait {
+                MyTrait() {
+                    println 'woo'
+                }
+            }
+
+            class Foo implements MyTrait {
+            }
+            def foo = new Foo()
+        '''
+        }
+    }
+
     @Trait
     static class TestTrait {
         int a() { 123 }

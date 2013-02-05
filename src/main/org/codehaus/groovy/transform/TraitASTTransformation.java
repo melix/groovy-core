@@ -66,6 +66,7 @@ public class TraitASTTransformation extends AbstractASTTransformation {
         AnnotationNode anno = (AnnotationNode) nodes[0];
         if (!MY_TYPE.equals(anno.getClassNode())) return;
         unit = source;
+        init(nodes, source);
         if (parent instanceof ClassNode) {
             ClassNode cNode = (ClassNode) parent;
             checkNotInterface(cNode, MY_TYPE_NAME);
