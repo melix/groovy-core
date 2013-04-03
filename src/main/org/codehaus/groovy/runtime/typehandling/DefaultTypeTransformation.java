@@ -37,7 +37,8 @@ public class DefaultTypeTransformation {
     
     protected static final Object[] EMPTY_ARGUMENTS = {};
     protected static final BigInteger ONE_NEG = new BigInteger("-1");
-    
+    private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
+
     //  --------------------------------------------------------
     //                  unboxing methods
     //  --------------------------------------------------------       
@@ -322,8 +323,7 @@ public class DefaultTypeTransformation {
             args = (Object[]) object;
         } else if (object instanceof Map) {
             // emulate named params constructor
-            args = new Object[1];
-            args[0] = object;
+            args = new Object[]{ object };
         }
         Exception nested = null;
         if (args != null) {
@@ -477,7 +477,7 @@ public class DefaultTypeTransformation {
             }
         }
         else if (isEnumSubclass(value)) {
-            Object[] values = (Object[])InvokerHelper.invokeMethod(value, "values", new Object[0]);
+            Object[] values = (Object[])InvokerHelper.invokeMethod(value, "values", EMPTY_OBJECT_ARRAY);
             return Arrays.asList(values);
         }
         else {

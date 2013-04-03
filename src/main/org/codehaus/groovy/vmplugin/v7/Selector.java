@@ -60,6 +60,7 @@ import static org.codehaus.groovy.vmplugin.v7.IndyInterface.*;
 import static org.codehaus.groovy.vmplugin.v7.IndyGuardsFiltersAndSignatures.*;
 
 public abstract class Selector {
+    private static final Object[] SINGLE_NULL_ARRAY = new Object[]{null};
     public Object[] args, originalArguments;
     public MetaMethod method;
     public MethodType targetType,currentType;
@@ -457,7 +458,7 @@ public abstract class Selector {
                     handle = correctClassForNameAndUnReflectOtherwise(m);
                     if (LOG_ENABLED) LOG.info("successfully unreflected method");
                     if (isStaticCategoryTypeMethod) {
-                        handle = MethodHandles.insertArguments(handle, 0, new Object[]{null});
+                        handle = MethodHandles.insertArguments(handle, 0, SINGLE_NULL_ARRAY);
                         handle = MethodHandles.dropArguments(handle, 0, targetType.parameterType(0));
                     } else if (!isCategoryTypeMethod && isStatic(m)) {
                         // we drop the receiver, which might be a Class (invocation on Class)
@@ -568,8 +569,7 @@ public abstract class Selector {
             if (!isVargs) {
                 if (spread && useMetaClass) return;
                 if (params.length==2 && args.length==1) {
-                    //TODO: this Object[] can be constant
-                    handle = MethodHandles.insertArguments(handle, 1, new Object[]{null});
+                    handle = MethodHandles.insertArguments(handle, 1, SINGLE_NULL_ARRAY);
                 }
                 return;
             }

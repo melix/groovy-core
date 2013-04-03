@@ -22,6 +22,7 @@ import groovy.lang.GroovyObjectSupport;
 
 public class NullObject extends GroovyObjectSupport {
     private static final NullObject INSTANCE = new NullObject();
+    private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
 
     /**
      * private constructor
@@ -106,7 +107,7 @@ public class NullObject extends GroovyObjectSupport {
      * @return the concatenated string
      */
     public Object plus(String s) {
-        return getMetaClass().invokeMethod(this, "toString", new Object[]{}) + s;
+        return getMetaClass().invokeMethod(this, "toString", EMPTY_OBJECT_ARRAY) + s;
     }
 
     /**
