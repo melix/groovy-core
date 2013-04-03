@@ -27,7 +27,9 @@ import groovy.lang.GString;
  * @see groovy.lang.GString
  */
 public class GStringImpl extends GString {
-    private String[] strings;
+    private final String[] strings;
+
+    private transient int estimate = -1;
 
     /**
      * Create a new GString with values and strings.
@@ -58,4 +60,14 @@ public class GStringImpl extends GString {
         return strings;
     }
 
+    @Override
+    protected int estimateLength() {
+        if (estimate>0) return estimate;
+        int len = (1+getValueCount()) << 3;
+        for (String string : strings) {
+            len += string.length();
+        }
+        estimate = len;
+        return len;
+    }
 }

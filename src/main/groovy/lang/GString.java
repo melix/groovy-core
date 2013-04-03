@@ -23,9 +23,9 @@ import java.io.Serializable;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.lang.ref.SoftReference;
+import java.lang.ref.WeakReference;
+import java.util.*;
 import java.util.regex.Pattern;
 
 /**
@@ -44,19 +44,46 @@ public abstract class GString extends GroovyObjectSupport implements Comparable,
 
     static final long serialVersionUID = -2638020355892246323L;
 
+    private static final String[] EMPTY_STRING_ARRAY = new String[]{""};
+
     /**
      * A GString containing a single empty String and no values.
      */
     public static final GString EMPTY = new GString(new Object[0]) {
         public String[] getStrings() {
-            return new String[]{""};
+            return EMPTY_STRING_ARRAY;
         }
     };
 
-    private Object[] values;
+
+    /**
+     * Tests if an object is a known immutable. The code is kept
+     * simple for improved performance. Adding too many cases
+     * can lead to slower execution if a gstring is used only
+     * once.
+     * @param c an object to test
+     * @return true if it's a known immutable
+     */
+    private static boolean isImmutable(Object c) {
+        return c==null
+                || c instanceof String
+                || c instanceof Integer
+                || c instanceof Character
+                || c instanceof Double
+                || c instanceof Boolean
+                || c instanceof Float
+                || c instanceof Long
+                || c instanceof Short
+                || c instanceof Byte;
+    }
+
+    private final Object[] values;
+
+    private transient boolean cacheable = false;
+    private transient SoftReference<String> cachedValue = new SoftReference<String>(null);
 
     public GString(Object values) {
-        this.values = (Object[]) values;
+        this((Object[]) values);
     }
 
     public GString(Object[] values) {
@@ -66,6 +93,10 @@ public abstract class GString extends GroovyObjectSupport implements Comparable,
     // will be static in an instance
 
     public abstract String[] getStrings();
+
+    protected int estimateLength() {
+        return (1+values.length) << 3;
+    }
 
     /**
      * Overloaded to implement duck typing for Strings
@@ -87,13 +118,18 @@ public abstract class GString extends GroovyObjectSupport implements Comparable,
     }
 
     public GString plus(GString that) {
-        List<String> stringList = new ArrayList<String>();
-        List<Object> valueList = new ArrayList<Object>();
+        final String[] thisStringsArray = getStrings();
+        final Object[] thisValuesArray = getValues();
+        final String[] thatStringsArray = that.getStrings();
+        final Object[] thatValuesArray = that.getValues();
 
-        stringList.addAll(Arrays.asList(getStrings()));
-        valueList.addAll(Arrays.asList(getValues()));
+        List<String> stringList = new ArrayList<String>(thisStringsArray.length+thatStringsArray.length);
+        List<Object> valueList = new ArrayList<Object>(thisValuesArray.length+thatValuesArray.length);
 
-        List<String> thatStrings = Arrays.asList(that.getStrings());
+        Collections.addAll(stringList, thisStringsArray);
+        Collections.addAll(valueList, thisValuesArray);
+
+        List<String> thatStrings = Arrays.asList(thatStringsArray);
         if (stringList.size() > valueList.size()) {
             thatStrings = new ArrayList<String>(thatStrings);
             // merge onto end of previous GString to avoid an empty bridging value
@@ -104,10 +140,9 @@ public abstract class GString extends GroovyObjectSupport implements Comparable,
         }
 
         stringList.addAll(thatStrings);
-        valueList.addAll(Arrays.asList(that.getValues()));
+        Collections.addAll(valueList, thatValuesArray);
 
-        final String[] newStrings = new String[stringList.size()];
-        stringList.toArray(newStrings);
+        final String[] newStrings = stringList.toArray(new String[stringList.size()]);
         Object[] newValues = valueList.toArray();
 
         return new GString(newValues) {
@@ -157,19 +192,36 @@ public abstract class GString extends GroovyObjectSupport implements Comparable,
     }
 
     public String toString() {
-        StringWriter buffer = new StringWriter();
+
+        String cached = cachedValue.get();
+        if (cached !=null) {
+            return cached;
+        }
+
+        GStringWriter buffer = new GStringWriter(estimateLength());
         try {
             writeTo(buffer);
         }
         catch (IOException e) {
             throw new StringWriterIOException(e);
         }
-        return buffer.toString();
+        String val = buffer.toString();
+        if (cacheable) {
+            cachedValue = new SoftReference<String>(val);
+        }
+        return val;
     }
 
     public Writer writeTo(Writer out) throws IOException {
-        String[] s = getStrings();
-        int numberOfValues = values.length;
+        String cached = cachedValue.get();
+        if (cached !=null) {
+            out.write(cached);
+            return out;
+        }
+        final String[] s = getStrings();
+        final Object[] values = this.values;
+        final int numberOfValues = values.length;
+        boolean immutable = true;
         for (int i = 0, size = s.length; i < size; i++) {
             out.write(s[i]);
             if (i < numberOfValues) {
@@ -186,11 +238,14 @@ public abstract class GString extends GroovyObjectSupport implements Comparable,
                         throw new GroovyRuntimeException("Trying to evaluate a GString containing a Closure taking "
                                 + c.getMaximumNumberOfParameters() + " parameters");
                     }
+                    immutable = false;
                 } else {
                     InvokerHelper.write(out, value);
+                    immutable &= isImmutable(value);
                 }
             }
         }
+        cacheable = immutable;
         return out;
     }
 
@@ -258,5 +313,67 @@ public abstract class GString extends GroovyObjectSupport implements Comparable,
 
     public byte[] getBytes(String charset) throws UnsupportedEncodingException {
        return toString().getBytes(charset);
+    }
+
+    /**
+     * An optimized writer that uses a StringBuilder internally instead of
+     * a StringBuffer like the {@link StringWriter} does. Unlike the string writer
+     * this one doesn't check bounds.
+     */
+    private static class GStringWriter extends Writer {
+
+        private final StringBuilder builder;
+
+        public GStringWriter(int size) {
+            builder = new StringBuilder(size);
+        }
+
+        public void write(int c) {
+            builder.append((char) c);
+        }
+
+        public void write(char cbuf[], int off, int len) {
+            builder.append(cbuf, off, len);
+        }
+
+        public void write(String str) {
+            builder.append(str);
+        }
+
+        public void write(String str, int off, int len)  {
+            builder.append(str.substring(off, off + len));
+        }
+
+        public GStringWriter append(CharSequence csq) {
+            if (csq == null)
+                write("null");
+            else
+                write(csq.toString());
+            return this;
+        }
+
+        public GStringWriter append(CharSequence csq, int start, int end) {
+            CharSequence cs = (csq == null ? "null" : csq);
+            write(cs.subSequence(start, end).toString());
+            return this;
+        }
+
+        public GStringWriter append(char c) {
+            write(c);
+            return this;
+        }
+
+        @Override
+        public void flush() throws IOException {
+        }
+
+        @Override
+        public void close() throws IOException {
+        }
+
+        @Override
+        public String toString() {
+            return builder.toString();
+        }
     }
 }
