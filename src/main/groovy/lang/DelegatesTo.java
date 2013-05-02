@@ -44,6 +44,7 @@ import java.lang.annotation.Target;
 public @interface DelegatesTo {
     Class value() default Target.class;
     int strategy() default Closure.OWNER_FIRST;
+    int genericTypeIndex() default -1;
 
     String target() default "";
 
