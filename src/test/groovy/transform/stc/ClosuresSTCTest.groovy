@@ -19,6 +19,7 @@ package groovy.transform.stc
  * Unit tests for static type checking : closures.
  *
  * @author Cedric Champeau
+ * @author Jochen Theodorou
  */
 class ClosuresSTCTest extends StaticTypeCheckingTestCase {
 
@@ -276,7 +277,20 @@ class ClosuresSTCTest extends StaticTypeCheckingTestCase {
             new Test().test()
         '''
     }
-    
+
+    // GROOVY-6219
+    void testShouldFailBecauseClosureReturnTypeDoesnMatchMethodSignature() {
+        shouldFailWithMessages '''
+            void printMessage(Closure<String> messageProvider) {
+                println "Received message : ${messageProvider()}"
+            }
+
+            void testMessage() {
+                printMessage { int x, int y -> x+y }
+            }
+        ''', 'Cannot find matching method'
+    }
+
     //GROOVY-6189
     void testSAMsInMethodSelection(){
         // simple direct case
@@ -306,6 +320,9 @@ class ClosuresSTCTest extends StaticTypeCheckingTestCase {
         assertScript """
             interface SAM { def foo(); }
 
+            @ASTTest(phase=INSTRUCTION_SELECTION, value={
+                assert node.getNodeMetaData(INFERRED_TYPE).name == 'SAM'
+            })
             SAM s = {1}
             assert s.foo() == 1
             def t = (SAM) {2}
@@ -403,6 +420,64 @@ class ClosuresSTCTest extends StaticTypeCheckingTestCase {
                 println 'foo'
             }
         ''', 'Reference to method is ambiguous. Cannot choose between'
+    }
+
+    // GROOVY-6219
+    void testSAMType() {
+        assertScript """
+            interface Foo {int foo()}
+            Foo f = {1}
+            assert f.foo() == 1
+            abstract class Bar implements Foo {}
+            Bar b = {2}
+            assert b.foo() == 2
+        """
+        shouldFailWithMessages """
+            interface Foo2 {
+                String toString()
+            }
+            Foo2 f2 = {int i->"hi"}
+        """, "Cannot assign"
+        shouldFailWithMessages """
+            interface Foo2 {
+                String toString()
+            }
+            abstract class Bar2 implements Foo2 {}
+            Bar2 b2 = {"there"}
+        """, "Cannot assign"
+        assertScript """
+            interface Foo3 {
+                boolean equals(Object)
+                int f()
+            }
+            Foo3 f3 = {1}
+            assert f3.f() == 1
+        """
+        shouldFailWithMessages """
+            interface Foo3 {
+                boolean equals(Object)
+                int f()
+            }
+            abstract class Bar3 implements Foo3 {
+                int f(){2}
+            }
+            Bar3 b3 = {2}
+        """, "Cannot assign"
+    }
+
+    // GROOVY-6238
+    void testDirectMethodCallOnClosureExpression() {
+        assertScript '''
+            @ASTTest(phase=INSTRUCTION_SELECTION,value={
+                def dit = node.getNodeMetaData(INFERRED_TYPE)
+                def irt = node.rightExpression.getNodeMetaData(INFERRED_TYPE)
+                assert irt == CLOSURE_TYPE
+                assert dit == CLOSURE_TYPE
+            })
+            def cl = { it }.curry(42)
+            def val = cl.call()
+            assert val == 42
+        '''
     }
 }
 
