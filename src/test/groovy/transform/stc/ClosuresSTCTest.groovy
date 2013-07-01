@@ -422,7 +422,6 @@ class ClosuresSTCTest extends StaticTypeCheckingTestCase {
         ''', 'Reference to method is ambiguous. Cannot choose between'
     }
 
-    // GROOVY-6219
     void testSAMType() {
         assertScript """
             interface Foo {int foo()}
