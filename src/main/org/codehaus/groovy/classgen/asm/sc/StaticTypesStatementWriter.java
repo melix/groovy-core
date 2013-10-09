@@ -24,6 +24,7 @@ import org.codehaus.groovy.ast.expr.MethodCallExpression;
 import org.codehaus.groovy.ast.stmt.BlockStatement;
 import org.codehaus.groovy.ast.stmt.ForStatement;
 import org.codehaus.groovy.classgen.asm.*;
+import org.codehaus.groovy.transform.stc.StaticTypesMarker;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 
@@ -45,9 +46,15 @@ public class StaticTypesStatementWriter extends StatementWriter {
     
     @Override
     public void writeBlockStatement(BlockStatement statement) {
+        boolean old = controller.isInStaticallyCheckedBlock();
+        Object dynamic = statement.getNodeMetaData(StaticTypesMarker.DYNAMIC_RESOLUTION);
+        if (dynamic!=null) {
+            controller.setInStaticallyCheckedBlock(false);
+        }
         controller.switchToFastPath();
         super.writeBlockStatement(statement);
         controller.switchToSlowPath();
+        controller.setInStaticallyCheckedBlock(old);
     }
 
     @Override

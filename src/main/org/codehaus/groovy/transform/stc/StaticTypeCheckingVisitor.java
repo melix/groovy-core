@@ -2485,6 +2485,13 @@ public class StaticTypeCheckingVisitor extends ClassCodeVisitorSupport {
     }
 
     @Override
+    public void visitBlockStatement(final BlockStatement block) {
+        Object dynamic = block.getNodeMetaData(StaticTypesMarker.DYNAMIC_RESOLUTION);
+        if (dynamic!=null) return;
+        super.visitBlockStatement(block);
+    }
+
+    @Override
     public void visitIfElse(final IfStatement ifElse) {
         Map<VariableExpression, List<ClassNode>> oldTracker = pushAssignmentTracking();
 

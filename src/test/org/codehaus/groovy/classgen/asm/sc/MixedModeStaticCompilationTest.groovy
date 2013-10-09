@@ -242,4 +242,24 @@ class MixedModeStaticCompilationTest extends StaticTypeCheckingTestCase {
         '''
     }
 
+    void testDynamicBlock() {
+        assertScript '''
+        import groovy.transform.CompileStatic
+import groovy.xml.MarkupBuilder
+        @CompileStatic(extensions='groovy/transform/sc/MixedMode3.groovy')
+        String testMarkupBuilder() {
+            def writer = new StringWriter()
+            def builder = new MarkupBuilder(writer)
+            builder.html {
+                head {
+                    title('This is a dynamic builder in a statically compiled code section')
+                }
+            }
+
+            writer
+        }
+        println testMarkupBuilder()
+        '''
+    }
+
 }

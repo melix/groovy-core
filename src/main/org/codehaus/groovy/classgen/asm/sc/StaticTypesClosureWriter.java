@@ -25,6 +25,7 @@ import org.codehaus.groovy.classgen.asm.ClosureWriter;
 import org.codehaus.groovy.classgen.asm.WriterController;
 import org.codehaus.groovy.control.SourceUnit;
 import org.codehaus.groovy.transform.sc.StaticCompilationMetadataKeys;
+import org.codehaus.groovy.transform.stc.StaticTypesMarker;
 
 import java.util.List;
 
@@ -40,6 +41,9 @@ public class StaticTypesClosureWriter extends ClosureWriter {
 
     @Override
     protected ClassNode createClosureClass(final ClosureExpression expression, final int mods) {
+        if (expression.getNodeMetaData(StaticTypesMarker.DYNAMIC_RESOLUTION)!=null) {
+            return super.createClosureClass(expression,mods);
+        }
         ClassNode closureClass = super.createClosureClass(expression, mods);
         List<MethodNode> methods = closureClass.getMethods("call");
         List<MethodNode> doCall = closureClass.getMethods("doCall");

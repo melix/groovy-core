@@ -22,6 +22,7 @@ import org.codehaus.groovy.ast.*;
 import org.codehaus.groovy.ast.expr.*;
 import org.codehaus.groovy.ast.stmt.EmptyStatement;
 import org.codehaus.groovy.ast.stmt.ReturnStatement;
+import org.codehaus.groovy.ast.stmt.Statement;
 import org.codehaus.groovy.classgen.asm.InvocationWriter;
 import org.codehaus.groovy.control.CompilationFailedException;
 import org.codehaus.groovy.control.CompilationUnit;
@@ -610,6 +611,21 @@ public class GroovyTypeCheckingExtensionSupport extends TypeCheckingExtension {
         vexp.putNodeMetaData(StaticTypesMarker.DYNAMIC_RESOLUTION, returnType);
         storeType(vexp, returnType);
         setHandled(true);
+    }
+
+
+    public void makeDynamic(ClosureExpression closure) {
+        makeDynamic(closure, ClassHelper.OBJECT_TYPE);
+    }
+
+    public void makeDynamic(ClosureExpression closure, ClassNode resultType) {
+        closure.putNodeMetaData(StaticTypesMarker.DYNAMIC_RESOLUTION, Boolean.TRUE);
+        closure.putNodeMetaData(StaticTypesMarker.INFERRED_RETURN_TYPE, resultType);
+        makeDynamic(closure.getCode());
+    }
+
+    public void makeDynamic(Statement stmt) {
+        stmt.putNodeMetaData(StaticTypesMarker.DYNAMIC_RESOLUTION, Boolean.TRUE);
     }
 
     // -------------------------------------

@@ -34,7 +34,7 @@ import org.objectweb.asm.ClassVisitor;
  */
 public class StaticTypesWriterController extends DelegatingController {
 
-    protected boolean isInStaticallyCheckedMethod;
+    protected boolean isInStaticallyCheckedBlock;
     private StaticTypesCallSiteWriter callSiteWriter;
     private StaticTypesStatementWriter statementWriter;
     private StaticTypesTypeChooser typeChooser;
@@ -45,7 +45,7 @@ public class StaticTypesWriterController extends DelegatingController {
 
     public StaticTypesWriterController(WriterController normalController) {
         super(normalController);
-        isInStaticallyCheckedMethod = false;
+        isInStaticallyCheckedBlock = false;
     }
 
     @Override
@@ -73,15 +73,18 @@ public class StaticTypesWriterController extends DelegatingController {
             node = classNode.getOuterClass();
         }
 
-        isInStaticallyCheckedMethod = mn != null && (
+        isInStaticallyCheckedBlock = mn != null && (
                 StaticCompilationVisitor.isStaticallyCompiled(node)
                         || classNode.implementsInterface(ClassHelper.GENERATED_CLOSURE_Type)&&classNode.getNodeMetaData(StaticCompilationMetadataKeys.STATIC_COMPILE_NODE)!=null);
 
-/*      if (isInStaticallyCheckedMethod) {
-            System.out.println("Entering statically compiled method: "+mn.getDeclaringClass()+"#"+mn);
-        } else if (mn!=null) {
-            System.out.println("Entering dynamically compiled method: "+mn.getDeclaringClass()+"#"+mn);
-        }*/
+    }
+
+    public boolean isInStaticallyCheckedBlock() {
+        return isInStaticallyCheckedBlock;
+    }
+
+    public void setInStaticallyCheckedBlock(final boolean inStaticallyCheckedBlock) {
+        isInStaticallyCheckedBlock = inStaticallyCheckedBlock;
     }
 
     @Override
@@ -92,7 +95,7 @@ public class StaticTypesWriterController extends DelegatingController {
     
     @Override
     public boolean isFastPath() {
-        if (isInStaticallyCheckedMethod) return true;
+        if (isInStaticallyCheckedBlock) return true;
         return super.isFastPath();
     }
     
@@ -102,7 +105,7 @@ public class StaticTypesWriterController extends DelegatingController {
         if (methodNode !=null && methodNode.getNodeMetaData(StaticTypesMarker.DYNAMIC_RESOLUTION)==Boolean.TRUE) {
             return super.getCallSiteWriter();
         }
-        if (isInStaticallyCheckedMethod) {
+        if (isInStaticallyCheckedBlock) {
             return callSiteWriter;
         }
         return super.getCallSiteWriter();
@@ -114,7 +117,7 @@ public class StaticTypesWriterController extends DelegatingController {
 
     @Override
     public StatementWriter getStatementWriter() {
-        if (isInStaticallyCheckedMethod) {
+        if (isInStaticallyCheckedBlock) {
             return statementWriter;
         } else {
             return super.getStatementWriter();            
@@ -123,7 +126,7 @@ public class StaticTypesWriterController extends DelegatingController {
     
     @Override
     public TypeChooser getTypeChooser() {
-        if (isInStaticallyCheckedMethod) {
+        if (isInStaticallyCheckedBlock) {
             return typeChooser;
         } else {
             return super.getTypeChooser();
@@ -132,7 +135,7 @@ public class StaticTypesWriterController extends DelegatingController {
 
     @Override
     public InvocationWriter getInvocationWriter() {
-        if (isInStaticallyCheckedMethod) {
+        if (isInStaticallyCheckedBlock) {
             return invocationWriter;
         } else {
             return super.getInvocationWriter();
@@ -145,7 +148,7 @@ public class StaticTypesWriterController extends DelegatingController {
 
     @Override
     public BinaryExpressionHelper getBinaryExpressionHelper() {
-        if (isInStaticallyCheckedMethod) {
+        if (isInStaticallyCheckedBlock) {
             return binaryExprHelper;
         } else {
             return super.getBinaryExpressionHelper();
@@ -154,7 +157,7 @@ public class StaticTypesWriterController extends DelegatingController {
 
     @Override
     public UnaryExpressionHelper getUnaryExpressionHelper() {
-        if (isInStaticallyCheckedMethod) {
+        if (isInStaticallyCheckedBlock) {
             return unaryExpressionHelper;
         }
         return super.getUnaryExpressionHelper();
@@ -162,7 +165,7 @@ public class StaticTypesWriterController extends DelegatingController {
 
     @Override
     public ClosureWriter getClosureWriter() {
-        if (isInStaticallyCheckedMethod) {
+        if (isInStaticallyCheckedBlock) {
             return closureWriter;
         }
         return super.getClosureWriter();
