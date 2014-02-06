@@ -17,6 +17,7 @@ package groovy.text.markup;
 
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.GroovyCodeSource;
+import groovy.lang.GroovyObject;
 import groovy.lang.Writable;
 import groovy.text.Template;
 import groovy.text.TemplateEngine;
@@ -46,15 +47,16 @@ public class MarkupTemplateEngine extends TemplateEngine {
     private final static AtomicLong counter = new AtomicLong();
 
     private final GroovyClassLoader groovyClassLoader;
+    private final CompilerConfiguration configuration;
 
     public MarkupTemplateEngine() {
         this(MarkupTemplateEngine.class.getClassLoader());
     }
 
     public MarkupTemplateEngine(ClassLoader parentLoader) {
-        CompilerConfiguration config = new CompilerConfiguration();
-        config.addCompilationCustomizers(new TemplateASTTransformer());
-        groovyClassLoader = new GroovyClassLoader(parentLoader, config);
+        configuration = new CompilerConfiguration();
+        configuration.addCompilationCustomizers(new TemplateASTTransformer());
+        groovyClassLoader = new GroovyClassLoader(parentLoader, configuration);
     }
 
     @Override
@@ -68,6 +70,10 @@ public class MarkupTemplateEngine extends TemplateEngine {
 
     public GroovyClassLoader getTemplateLoader() {
         return groovyClassLoader;
+    }
+
+    public CompilerConfiguration getConfiguration() {
+        return configuration;
     }
 
     private class StreamingMarkupBuilderTemplate implements Template {

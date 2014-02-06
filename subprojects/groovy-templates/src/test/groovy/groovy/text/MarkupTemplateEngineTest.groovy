@@ -48,18 +48,46 @@ html {
         assert rendered.toString() == '<html><body>It works!</body></html>'
     }
 
-    void testSimpleTemplateWithInclude() {
+    void testSimpleTemplateWithIncludeTemplate() {
         MarkupTemplateEngine engine = new MarkupTemplateEngine()
         def template = engine.createTemplate '''
 html {
     body {
-        include 'includes/hello.tpl'
+        include template:'includes/hello.tpl'
     }
 }
 '''
         StringWriter rendered = new StringWriter()
         template.make().writeTo(rendered)
         assert rendered.toString() == '<html><body>Hello from include!</body></html>'
+    }
+
+    void testSimpleTemplateWithIncludeRaw() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        def template = engine.createTemplate '''
+html {
+    body {
+        include unescaped:'includes/hello.html'
+    }
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make().writeTo(rendered)
+        assert rendered.toString() == '<html><body>Hello unescaped!</body></html>'
+    }
+
+    void testSimpleTemplateWithIncludeEscaped() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        def template = engine.createTemplate '''
+html {
+    body {
+        include escaped:'includes/hello-escaped.txt'
+    }
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make().writeTo(rendered)
+        assert rendered.toString() == '<html><body>Hello &lt;escaped&gt;!</body></html>'
     }
 
     void testCollectionInModel() {

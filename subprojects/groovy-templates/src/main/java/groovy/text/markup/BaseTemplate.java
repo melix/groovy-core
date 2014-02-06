@@ -15,8 +15,10 @@
  */
 package groovy.text.markup;
 
+import groovy.lang.GroovyObject;
 import groovy.lang.Writable;
 import groovy.xml.StreamingMarkupBuilder;
+import org.codehaus.groovy.runtime.ResourceGroovyMethods;
 import org.codehaus.groovy.runtime.metaclass.MissingPropertyExceptionNoStack;
 
 import java.io.IOException;
@@ -27,20 +29,38 @@ import java.util.Map;
 public abstract class BaseTemplate implements Writable {
     private final Map model;
     private final MarkupTemplateEngine engine;
+    private final StreamingMarkupBuilder builder;
 
     public BaseTemplate(final MarkupTemplateEngine templateEngine, final Map model) {
         this.model = model;
         this.engine = templateEngine;
+        this.builder = new StreamingMarkupBuilder();
     }
 
-    public abstract Object run();
+    public abstract /*Closure*/ Object run();
 
-    protected Writable include(String templatePath) throws IOException, ClassNotFoundException {
+
+    protected void includeGroovy(GroovyObject mkp, String templatePath) throws IOException, ClassNotFoundException {
+        URL resource = getIncludedResource(templatePath);
+        mkp.invokeMethod("yieldUnescaped", new Object[]{engine.createTemplate(resource).make(model)});
+    }
+
+    private URL getIncludedResource(final String templatePath) throws IOException {
         URL resource = engine.getTemplateLoader().getResource(templatePath);
         if (resource == null) {
             throw new IOException("Unable to load template:" + templatePath);
         }
-        return engine.createTemplate(resource).make(model);
+        return resource;
+    }
+
+    protected void includeEscaped(GroovyObject mkp, String templatePath) throws IOException {
+        URL resource = getIncludedResource(templatePath);
+        mkp.invokeMethod("yield", new Object[]{ResourceGroovyMethods.getText(resource, engine.getConfiguration().getSourceEncoding())});
+    }
+
+    protected void includeUnescaped(GroovyObject mkp, String templatePath) throws IOException {
+        URL resource = getIncludedResource(templatePath);
+        mkp.invokeMethod("yieldUnescaped", new Object[]{ResourceGroovyMethods.getText(resource, engine.getConfiguration().getSourceEncoding())});
     }
 
     public Object propertyMissing(String name) {
@@ -52,8 +72,7 @@ public abstract class BaseTemplate implements Writable {
     }
 
     public Writer writeTo(final Writer out) throws IOException {
-        StreamingMarkupBuilder builder = new StreamingMarkupBuilder();
-
-        return builder.bind(run()).writeTo(out);
+        Writable writable = builder.bind(run());
+        return writable.writeTo(out);
     }
 }
