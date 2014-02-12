@@ -18,6 +18,7 @@ package groovy.text.markup;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
 import org.codehaus.groovy.ast.expr.ArgumentListExpression;
 import org.codehaus.groovy.ast.expr.ClosureExpression;
+import org.codehaus.groovy.ast.expr.ConstantExpression;
 import org.codehaus.groovy.ast.expr.Expression;
 import org.codehaus.groovy.ast.expr.MapEntryExpression;
 import org.codehaus.groovy.ast.expr.MapExpression;
@@ -95,6 +96,17 @@ public class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer
                 call.setSourcePosition(exp);
                 return call;
             }
+        } else if (exp.isImplicitThis() && name.startsWith(":")) {
+            MethodCallExpression call = new MethodCallExpression(
+                    new VariableExpression("this"),
+                    name.substring(1),
+                    exp.getArguments()
+            );
+            call.setImplicitThis(true);
+            call.setSafe(exp.isSafe());
+            call.setSpreadSafe(exp.isSpreadSafe());
+            call.setSourcePosition(exp);
+            return call;
         }
         return super.transform(exp);
     }

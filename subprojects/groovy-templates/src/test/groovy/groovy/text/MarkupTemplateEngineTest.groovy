@@ -178,4 +178,14 @@ html {
         template.make().writeTo(rendered)
         assert rendered.toString() == '<html>||<body>Hello, PI!</body></html>'
     }
+
+    void testXMLWithYieldTag() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        def template = engine.createTemplate '''
+':yield'()
+'''
+        StringWriter rendered = new StringWriter()
+        template.make().writeTo(rendered)
+        assert rendered.toString() == '<yield/>'
+    }
 }
