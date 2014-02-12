@@ -39,6 +39,9 @@ import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.objectweb.asm.Opcodes;
 
 class TemplateASTTransformer extends CompilationCustomizer {
+
+    private static final ClassNode TEMPLATECONFIG_CLASSNODE = ClassHelper.make(TemplateConfiguration.class);
+
     public TemplateASTTransformer() {
         super(CompilePhase.SEMANTIC_ANALYSIS);
     }
@@ -49,8 +52,6 @@ class TemplateASTTransformer extends CompilationCustomizer {
             classNode.setSuperClass(MarkupTemplateEngine.BASETEMPLATE_CLASSNODE);
             createConstructor(classNode);
             transformRunMethod(classNode, source);
-            VariableScopeVisitor visitor = new VariableScopeVisitor(source);
-            visitor.visitClass(classNode);
         }
     }
 
@@ -61,16 +62,20 @@ class TemplateASTTransformer extends CompilationCustomizer {
         code.visit(transformer);
         ClosureExpression cl = new ClosureExpression(Parameter.EMPTY_ARRAY, code);
         runMethod.setCode(new ExpressionStatement(cl));
+        VariableScopeVisitor visitor = new VariableScopeVisitor(source);
+        visitor.prepareVisit(classNode);
+        visitor.visitMethod(runMethod);
     }
 
     private void createConstructor(final ClassNode classNode) {
         Parameter[] params = new Parameter[]{
                 new Parameter(MarkupTemplateEngine.MARKUPTEMPLATEENGINE_CLASSNODE, "engine"),
-                new Parameter(ClassHelper.MAP_TYPE.getPlainNodeReference(), "model")
+                new Parameter(ClassHelper.MAP_TYPE.getPlainNodeReference(), "model"),
+                new Parameter(TEMPLATECONFIG_CLASSNODE, "tplConfig")
         };
         ExpressionStatement body = new ExpressionStatement(
                 new ConstructorCallExpression(ClassNode.SUPER,
-                        new ArgumentListExpression(new VariableExpression(params[0]), new VariableExpression(params[1])))
+                        new ArgumentListExpression(new VariableExpression(params[0]), new VariableExpression(params[1]), new VariableExpression(params[2])))
         );
         ConstructorNode ctor = new ConstructorNode(Opcodes.ACC_PUBLIC, params, ClassNode.EMPTY_ARRAY, body);
         classNode.addConstructor(ctor);

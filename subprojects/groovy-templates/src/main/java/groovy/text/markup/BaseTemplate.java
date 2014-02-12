@@ -15,6 +15,7 @@
  */
 package groovy.text.markup;
 
+import groovy.lang.Closure;
 import groovy.lang.GroovyObject;
 import groovy.lang.Writable;
 import groovy.xml.StreamingMarkupBuilder;
@@ -29,12 +30,12 @@ import java.util.Map;
 public abstract class BaseTemplate implements Writable {
     private final Map model;
     private final MarkupTemplateEngine engine;
-    private final StreamingMarkupBuilder builder;
+    private final TemplateConfiguration configuration;
 
-    public BaseTemplate(final MarkupTemplateEngine templateEngine, final Map model) {
+    public BaseTemplate(final MarkupTemplateEngine templateEngine, final Map model, final TemplateConfiguration configuration) {
         this.model = model;
         this.engine = templateEngine;
-        this.builder = new StreamingMarkupBuilder();
+        this.configuration = configuration;
     }
 
     public abstract /*Closure*/ Object run();
@@ -55,12 +56,12 @@ public abstract class BaseTemplate implements Writable {
 
     protected void includeEscaped(GroovyObject mkp, String templatePath) throws IOException {
         URL resource = getIncludedResource(templatePath);
-        mkp.invokeMethod("yield", new Object[]{ResourceGroovyMethods.getText(resource, engine.getConfiguration().getSourceEncoding())});
+        mkp.invokeMethod("yield", new Object[]{ResourceGroovyMethods.getText(resource, engine.getCompilerConfiguration().getSourceEncoding())});
     }
 
     protected void includeUnescaped(GroovyObject mkp, String templatePath) throws IOException {
         URL resource = getIncludedResource(templatePath);
-        mkp.invokeMethod("yieldUnescaped", new Object[]{ResourceGroovyMethods.getText(resource, engine.getConfiguration().getSourceEncoding())});
+        mkp.invokeMethod("yieldUnescaped", new Object[]{ResourceGroovyMethods.getText(resource, engine.getCompilerConfiguration().getSourceEncoding())});
     }
 
     public Object propertyMissing(String name) {
@@ -72,7 +73,12 @@ public abstract class BaseTemplate implements Writable {
     }
 
     public Writer writeTo(final Writer out) throws IOException {
-        Writable writable = builder.bind(run());
+        StreamingMarkupBuilder builder = new StreamingMarkupBuilder();
+        builder.setEncoding(configuration.getDeclarationEncoding());
+        builder.setExpandEmptyElements(configuration.isExpandEmptyElements());
+        builder.setUseDoubleQuotes(configuration.isUseDoubleQuotes());
+        Closure spec = (Closure) run();
+        Writable writable = builder.bind(spec);
         return writable.writeTo(out);
     }
 }

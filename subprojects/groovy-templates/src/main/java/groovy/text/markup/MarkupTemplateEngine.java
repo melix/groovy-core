@@ -21,10 +21,13 @@ import groovy.lang.GroovyObject;
 import groovy.lang.Writable;
 import groovy.text.Template;
 import groovy.text.TemplateEngine;
+import org.codehaus.groovy.antlr.AntlrParserPlugin;
 import org.codehaus.groovy.ast.ClassHelper;
 import org.codehaus.groovy.ast.ClassNode;
 import org.codehaus.groovy.control.CompilationFailedException;
 import org.codehaus.groovy.control.CompilerConfiguration;
+import org.codehaus.groovy.control.ParserPlugin;
+import org.codehaus.groovy.control.ParserPluginFactory;
 import org.codehaus.groovy.runtime.DefaultGroovyMethods;
 
 import java.io.IOException;
@@ -47,16 +50,18 @@ public class MarkupTemplateEngine extends TemplateEngine {
     private final static AtomicLong counter = new AtomicLong();
 
     private final GroovyClassLoader groovyClassLoader;
-    private final CompilerConfiguration configuration;
+    private final CompilerConfiguration compilerConfiguration;
+    private final TemplateConfiguration templateConfiguration;
 
     public MarkupTemplateEngine() {
-        this(MarkupTemplateEngine.class.getClassLoader());
+        this(MarkupTemplateEngine.class.getClassLoader(), new TemplateConfiguration());
     }
 
-    public MarkupTemplateEngine(ClassLoader parentLoader) {
-        configuration = new CompilerConfiguration();
-        configuration.addCompilationCustomizers(new TemplateASTTransformer());
-        groovyClassLoader = new GroovyClassLoader(parentLoader, configuration);
+    public MarkupTemplateEngine(ClassLoader parentLoader, TemplateConfiguration tplConfig) {
+        compilerConfiguration = new CompilerConfiguration();
+        templateConfiguration = tplConfig;
+        compilerConfiguration.addCompilationCustomizers(new TemplateASTTransformer());
+        groovyClassLoader = new GroovyClassLoader(parentLoader, compilerConfiguration);
     }
 
     @Override
@@ -72,8 +77,12 @@ public class MarkupTemplateEngine extends TemplateEngine {
         return groovyClassLoader;
     }
 
-    public CompilerConfiguration getConfiguration() {
-        return configuration;
+    public CompilerConfiguration getCompilerConfiguration() {
+        return compilerConfiguration;
+    }
+
+    public TemplateConfiguration getTemplateConfiguration() {
+        return templateConfiguration;
     }
 
     private class StreamingMarkupBuilderTemplate implements Template {
@@ -94,7 +103,7 @@ public class MarkupTemplateEngine extends TemplateEngine {
         }
 
         public Writable make(final Map binding) {
-            return DefaultGroovyMethods.newInstance(templateClass, new Object[]{MarkupTemplateEngine.this, binding});
+            return DefaultGroovyMethods.newInstance(templateClass, new Object[]{MarkupTemplateEngine.this, binding, templateConfiguration});
         }
     }
 

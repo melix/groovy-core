@@ -90,10 +90,13 @@ public class ClosureExpression extends Expression {
     @Override
     public String getText() {
         String paramText = AstToTextHelper.getParametersText(parameters);
+        StringBuilder sb = new StringBuilder("{");
         if (paramText.length() > 0) {
-            return "{ " + paramText + " -> ... }";
-        } else {
-            return "{ -> ... }";
+            sb.append(paramText);
         }
+        sb.append(" -> ");
+        sb.append(code.getText());
+        sb.append("\n}");
+        return sb.toString();
     }
 }

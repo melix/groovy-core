@@ -109,4 +109,33 @@ html {
         assert rendered.toString() == '<html><body><ul><li>Cedric</li><li>Jochen</li></ul></body></html>'
 
     }
+
+    void testHTMLHeader() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        def template = engine.createTemplate '''
+mkp.yieldUnescaped '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">'
+html {
+    body('Hello, XHTML!')
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make().writeTo(rendered)
+        assert rendered.toString() == '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html><body>Hello, XHTML!</body></html>'
+    }
+
+    void testTemplateWithHelperMethod() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        def template = engine.createTemplate '''
+def foo = {
+    body('Hello from foo!')
+}
+
+html {
+    foo()
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make().writeTo(rendered)
+        assert rendered.toString() == '<html><body>Hello from foo!</body></html>'
+    }
 }
