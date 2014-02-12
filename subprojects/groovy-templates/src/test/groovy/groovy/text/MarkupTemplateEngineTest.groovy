@@ -24,7 +24,7 @@ class MarkupTemplateEngineTest extends GroovyTestCase {
         def template = engine.createTemplate '''
 html {
     body {
-        mkp.yield 'It works!'
+        yield 'It works!'
     }
 }
 '''
@@ -38,7 +38,7 @@ html {
         def template = engine.createTemplate '''
 html {
     body {
-        mkp.yield message
+        yield message
     }
 }
 '''
@@ -113,7 +113,7 @@ html {
     void testHTMLHeader() {
         MarkupTemplateEngine engine = new MarkupTemplateEngine()
         def template = engine.createTemplate '''
-mkp.yieldUnescaped '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">'
+yieldUnescaped '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">'
 html {
     body('Hello, XHTML!')
 }
@@ -137,5 +137,45 @@ html {
         StringWriter rendered = new StringWriter()
         template.make().writeTo(rendered)
         assert rendered.toString() == '<html><body>Hello from foo!</body></html>'
+    }
+
+    void testCallPi() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        def template = engine.createTemplate '''
+pi("xml-stylesheet":[href:"mystyle.css", type:"text/css"])
+html {
+    body('Hello, PI!')
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make().writeTo(rendered)
+        assert rendered.toString() == '<?xml-stylesheet href=\'mystyle.css\' type=\'text/css\'?><html><body>Hello, PI!</body></html>'
+    }
+
+    void testXmlDeclaration() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        def template = engine.createTemplate '''
+xmlDeclaration()
+html {
+    body('Hello, PI!')
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make().writeTo(rendered)
+        assert rendered.toString() == '<?xml version=\'1.0\'?>\n<html><body>Hello, PI!</body></html>'
+    }
+
+    void testNewLine() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        engine.templateConfiguration.newLineString = '||'
+        def template = engine.createTemplate '''
+html {
+    newLine()
+    body('Hello, PI!')
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make().writeTo(rendered)
+        assert rendered.toString() == '<html>||<body>Hello, PI!</body></html>'
     }
 }

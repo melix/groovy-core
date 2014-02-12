@@ -64,6 +64,10 @@ public abstract class BaseTemplate implements Writable {
         mkp.invokeMethod("yieldUnescaped", new Object[]{ResourceGroovyMethods.getText(resource, engine.getCompilerConfiguration().getSourceEncoding())});
     }
 
+    protected void newLine(GroovyObject mkp) {
+        mkp.invokeMethod("yieldUnescaped", new Object[]{configuration.getNewLineString()});
+    }
+
     public Object propertyMissing(String name) {
         if (model.containsKey(name)) {
             return model.get(name);

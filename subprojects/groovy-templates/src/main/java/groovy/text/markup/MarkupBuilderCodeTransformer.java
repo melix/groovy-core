@@ -26,9 +26,23 @@ import org.codehaus.groovy.ast.expr.TupleExpression;
 import org.codehaus.groovy.ast.expr.VariableExpression;
 import org.codehaus.groovy.control.SourceUnit;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer {
+    private final static Set<String> SPECIAL_METHODS = Collections.unmodifiableSet(
+            new HashSet<String>() {{
+                add("yield");
+                add("yieldUnescaped");
+                add("comment");
+                add("namespaces");
+                add("pi");
+                add("xmlDeclaration");
+            }}
+    );
+
     private final SourceUnit unit;
 
     public MarkupBuilderCodeTransformer(final SourceUnit unit) {
@@ -53,37 +67,68 @@ public class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer
     }
 
     private Expression transformMethodCall(final MethodCallExpression exp) {
-        if (exp.isImplicitThis() && "include".equals(exp.getMethodAsString())) {
+        String name = exp.getMethodAsString();
+        if (exp.isImplicitThis() && "include".equals(name)) {
+            return tryTransformInclude(exp);
+        } else if (exp.isImplicitThis() && SPECIAL_METHODS.contains(name)) {
+            MethodCallExpression call = new MethodCallExpression(
+                    new VariableExpression("mkp"),
+                    name,
+                    exp.getArguments()
+            );
+            call.setImplicitThis(false);
+            call.setSafe(exp.isSafe());
+            call.setSpreadSafe(exp.isSpreadSafe());
+            call.setSourcePosition(exp);
+            return call;
+        } else if (exp.isImplicitThis() && "newLine".equals(name)) {
             Expression arguments = exp.getArguments();
-            if (arguments instanceof TupleExpression) {
-                List<Expression> expressions = ((TupleExpression) arguments).getExpressions();
-                if (expressions.size() == 1 && expressions.get(0) instanceof MapExpression) {
-                    MapExpression map = (MapExpression) expressions.get(0);
-                    List<MapEntryExpression> entries = map.getMapEntryExpressions();
-                    if (entries.size() == 1) {
-                        MapEntryExpression mapEntry = entries.get(0);
-                        Expression keyExpression = mapEntry.getKeyExpression();
-                        try {
-                            IncludeType includeType = IncludeType.valueOf(keyExpression.getText().toLowerCase());
-                            MethodCallExpression call = new MethodCallExpression(
-                                    exp.getObjectExpression(),
-                                    includeType.getMethodName(),
-                                    new ArgumentListExpression(
-                                            new VariableExpression("mkp"),
-                                            mapEntry.getValueExpression()
-                                    )
-                            );
-                            call.setImplicitThis(true);
-                            call.setSafe(exp.isSafe());
-                            call.setSpreadSafe(exp.isSpreadSafe());
-                            call.setSourcePosition(exp);
-                            return call;
-                        } catch (IllegalArgumentException e) {
-                            // not a valid import type, do not modify the code
-                        }
-                    }
+            if (arguments instanceof TupleExpression && ((TupleExpression) arguments).getExpressions().isEmpty()) {
+                MethodCallExpression call = new MethodCallExpression(
+                        new VariableExpression("this"),
+                        "newLine",
+                        new ArgumentListExpression(new VariableExpression("mkp"))
+                );
+                call.setImplicitThis(false);
+                call.setSafe(exp.isSafe());
+                call.setSpreadSafe(exp.isSpreadSafe());
+                call.setSourcePosition(exp);
+                return call;
+            }
+        }
+        return super.transform(exp);
+    }
 
+    private Expression tryTransformInclude(final MethodCallExpression exp) {
+        Expression arguments = exp.getArguments();
+        if (arguments instanceof TupleExpression) {
+            List<Expression> expressions = ((TupleExpression) arguments).getExpressions();
+            if (expressions.size() == 1 && expressions.get(0) instanceof MapExpression) {
+                MapExpression map = (MapExpression) expressions.get(0);
+                List<MapEntryExpression> entries = map.getMapEntryExpressions();
+                if (entries.size() == 1) {
+                    MapEntryExpression mapEntry = entries.get(0);
+                    Expression keyExpression = mapEntry.getKeyExpression();
+                    try {
+                        IncludeType includeType = IncludeType.valueOf(keyExpression.getText().toLowerCase());
+                        MethodCallExpression call = new MethodCallExpression(
+                                exp.getObjectExpression(),
+                                includeType.getMethodName(),
+                                new ArgumentListExpression(
+                                        new VariableExpression("mkp"),
+                                        mapEntry.getValueExpression()
+                                )
+                        );
+                        call.setImplicitThis(true);
+                        call.setSafe(exp.isSafe());
+                        call.setSpreadSafe(exp.isSpreadSafe());
+                        call.setSourcePosition(exp);
+                        return call;
+                    } catch (IllegalArgumentException e) {
+                        // not a valid import type, do not modify the code
+                    }
                 }
+
             }
         }
         return super.transform(exp);

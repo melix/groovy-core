@@ -25,6 +25,7 @@ public class TemplateConfiguration {
     private String declarationEncoding;
     private boolean expandEmptyElements;
     private boolean useDoubleQuotes;
+    private String newLineString = System.getProperty("line.separator");
 
     /**
      * @return the encoding used in the declaration header
@@ -63,5 +64,13 @@ public class TemplateConfiguration {
 
     public void setUseDoubleQuotes(final boolean useDoubleQuotes) {
         this.useDoubleQuotes = useDoubleQuotes;
+    }
+
+    public String getNewLineString() {
+        return newLineString;
+    }
+
+    public void setNewLineString(final String newLineString) {
+        this.newLineString = newLineString;
     }
 }
