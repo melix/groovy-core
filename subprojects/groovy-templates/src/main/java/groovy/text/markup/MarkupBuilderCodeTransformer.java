@@ -16,7 +16,10 @@
 package groovy.text.markup;
 
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
+import org.codehaus.groovy.ast.ClassHelper;
+import org.codehaus.groovy.ast.DynamicVariable;
 import org.codehaus.groovy.ast.expr.ArgumentListExpression;
+import org.codehaus.groovy.ast.expr.ArrayExpression;
 import org.codehaus.groovy.ast.expr.ClosureExpression;
 import org.codehaus.groovy.ast.expr.ConstantExpression;
 import org.codehaus.groovy.ast.expr.Expression;
@@ -64,6 +67,19 @@ public class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer
             ClosureExpression cl = (ClosureExpression) exp;
             cl.getCode().visit(this);
         }
+        if (exp instanceof VariableExpression) {
+            VariableExpression var = (VariableExpression) exp;
+            if (var.getAccessedVariable() instanceof DynamicVariable) {
+                MethodCallExpression mce = new MethodCallExpression(
+                        new VariableExpression("model"),
+                        "get",
+                        new ArgumentListExpression(new ConstantExpression(var.getName()))
+                );
+                mce.setSourcePosition(exp);
+                mce.setImplicitThis(false);
+                return mce;
+            }
+        }
         return super.transform(exp);
     }
 
@@ -71,36 +87,17 @@ public class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer
         String name = exp.getMethodAsString();
         if (exp.isImplicitThis() && "include".equals(name)) {
             return tryTransformInclude(exp);
-        } else if (exp.isImplicitThis() && SPECIAL_METHODS.contains(name)) {
-            MethodCallExpression call = new MethodCallExpression(
-                    new VariableExpression("mkp"),
-                    name,
-                    exp.getArguments()
-            );
-            call.setImplicitThis(false);
-            call.setSafe(exp.isSafe());
-            call.setSpreadSafe(exp.isSpreadSafe());
-            call.setSourcePosition(exp);
-            return call;
-        } else if (exp.isImplicitThis() && "newLine".equals(name)) {
-            Expression arguments = exp.getArguments();
-            if (arguments instanceof TupleExpression && ((TupleExpression) arguments).getExpressions().isEmpty()) {
-                MethodCallExpression call = new MethodCallExpression(
-                        new VariableExpression("this"),
-                        "newLine",
-                        new ArgumentListExpression(new VariableExpression("mkp"))
-                );
-                call.setImplicitThis(false);
-                call.setSafe(exp.isSafe());
-                call.setSpreadSafe(exp.isSpreadSafe());
-                call.setSourcePosition(exp);
-                return call;
-            }
         } else if (exp.isImplicitThis() && name.startsWith(":")) {
+            List<Expression> args;
+            if (exp.getArguments() instanceof ArgumentListExpression) {
+                args = ((ArgumentListExpression) exp.getArguments()).getExpressions();
+            } else {
+                args = Collections.singletonList(exp.getArguments());
+            }
             MethodCallExpression call = new MethodCallExpression(
                     new VariableExpression("this"),
-                    name.substring(1),
-                    exp.getArguments()
+                    "methodMissing",
+                    new ArgumentListExpression(new ConstantExpression(name.substring(1)),new ArrayExpression(ClassHelper.OBJECT_TYPE,args))
             );
             call.setImplicitThis(true);
             call.setSafe(exp.isSafe());
@@ -127,7 +124,6 @@ public class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer
                                 exp.getObjectExpression(),
                                 includeType.getMethodName(),
                                 new ArgumentListExpression(
-                                        new VariableExpression("mkp"),
                                         mapEntry.getValueExpression()
                                 )
                         );

@@ -16,21 +16,22 @@
 package groovy.text.markup;
 
 import groovy.lang.Closure;
-import groovy.lang.GroovyObject;
 import groovy.lang.Writable;
-import groovy.xml.StreamingMarkupBuilder;
 import org.codehaus.groovy.runtime.ResourceGroovyMethods;
-import org.codehaus.groovy.runtime.metaclass.MissingPropertyExceptionNoStack;
 
 import java.io.IOException;
 import java.io.Writer;
 import java.net.URL;
 import java.util.Map;
 
+import static groovy.xml.XmlUtil.escapeXml;
+
 public abstract class BaseTemplate implements Writable {
-    private final Map model;
+    protected final Map model;
     private final MarkupTemplateEngine engine;
     private final TemplateConfiguration configuration;
+
+    private Writer out;
 
     public BaseTemplate(final MarkupTemplateEngine templateEngine, final Map model, final TemplateConfiguration configuration) {
         this.model = model;
@@ -38,12 +39,129 @@ public abstract class BaseTemplate implements Writable {
         this.configuration = configuration;
     }
 
-    public abstract /*Closure*/ Object run();
+    public abstract Object run();
 
+    public BaseTemplate yieldUnescaped(CharSequence obj) throws IOException {
+        out.write(obj.toString());
+        return this;
+    }
 
-    protected void includeGroovy(GroovyObject mkp, String templatePath) throws IOException, ClassNotFoundException {
+    public BaseTemplate yield(CharSequence obj) throws IOException {
+        out.write(escapeXml(obj.toString()));
+        return this;
+    }
+
+    public BaseTemplate comment(CharSequence cs) throws IOException {
+        out.write("<!--");
+        out.write(cs.toString());
+        out.write("-->");
+        return this;
+    }
+
+    public BaseTemplate xmlDeclaration() throws IOException {
+        out.write("<?xml ");
+        writeAttribute("version", "1.0");
+        if (configuration.getDeclarationEncoding() != null) {
+            writeAttribute("encoding", configuration.getDeclarationEncoding());
+        }
+        out.write("?>\n");
+        return this;
+    }
+
+    public BaseTemplate pi(Map<?, ?> attrs) throws IOException {
+        for (Map.Entry<?, ?> entry : attrs.entrySet()) {
+            Object target = entry.getKey();
+            Object instruction = entry.getValue();
+            out.write("<?");
+            out.write(target.toString());
+            if (instruction instanceof Map) {
+                writeAttributes((Map) instruction);
+            } else {
+                out.write(target.toString());
+                out.write(" ");
+                out.write(instruction.toString());
+            }
+            out.write("?>");
+        }
+        return this;
+    }
+
+    private void writeAttribute(String attName, String value) throws IOException {
+        out.write(attName);
+        out.write("=");
+        writeQt();
+        out.write(escapeQuotes(value));
+        writeQt();
+    }
+
+    private void writeQt() throws IOException {
+        if (configuration.isUseDoubleQuotes()) {
+            out.write('"');
+        } else {
+            out.write('\'');
+        }
+    }
+
+    private String escapeQuotes(String str) {
+        String quote = configuration.isUseDoubleQuotes() ? "\"" : "'";
+        String escape = configuration.isUseDoubleQuotes() ? "&quote;" : "&apos;";
+        return str.replace(quote, escape);
+    }
+
+    public Object methodMissing(String tagName, Object args) throws IOException {
+        if (args instanceof Object[]) {
+            Object[] array = (Object[]) args;
+            Map attributes = null;
+            Object body = null;
+            for (Object o : array) {
+                if (o instanceof Map) {
+                    attributes = (Map) o;
+                } else {
+                    body = o;
+                }
+            }
+            out.write('<');
+            out.write(tagName);
+            writeAttributes(attributes);
+            if (body != null) {
+                out.write('>');
+                if (body instanceof Closure) {
+                    ((Closure) body).call();
+                } else {
+                    out.write(body.toString());
+                }
+                out.write("</");
+                out.write(tagName);
+                out.write('>');
+            } else {
+                if (configuration.isExpandEmptyElements()) {
+                    out.write("></");
+                    out.write(tagName);
+                    out.write('>');
+
+                } else {
+                    out.write("/>");
+                }
+            }
+        }
+        return this;
+    }
+
+    private void writeAttributes(final Map<?, ?> attributes) throws IOException {
+        if (attributes == null) {
+            return;
+        }
+        for (Map.Entry entry : attributes.entrySet()) {
+            out.write(' ');
+            String attName = entry.getKey().toString();
+            String value = entry.getValue() == null ? "" : entry.getValue().toString();
+            writeAttribute(attName, value);
+        }
+    }
+
+    public void includeGroovy(String templatePath) throws IOException, ClassNotFoundException {
         URL resource = getIncludedResource(templatePath);
-        mkp.invokeMethod("yieldUnescaped", new Object[]{engine.createTemplate(resource).make(model)});
+        engine.createTemplate(resource).make(model).writeTo(out);
     }
 
     private URL getIncludedResource(final String templatePath) throws IOException {
@@ -54,35 +172,28 @@ public abstract class BaseTemplate implements Writable {
         return resource;
     }
 
-    protected void includeEscaped(GroovyObject mkp, String templatePath) throws IOException {
+    public void includeEscaped(String templatePath) throws IOException {
         URL resource = getIncludedResource(templatePath);
-        mkp.invokeMethod("yield", new Object[]{ResourceGroovyMethods.getText(resource, engine.getCompilerConfiguration().getSourceEncoding())});
+        yield(ResourceGroovyMethods.getText(resource, engine.getCompilerConfiguration().getSourceEncoding()));
     }
 
-    protected void includeUnescaped(GroovyObject mkp, String templatePath) throws IOException {
+    public void includeUnescaped(String templatePath) throws IOException {
         URL resource = getIncludedResource(templatePath);
-        mkp.invokeMethod("yieldUnescaped", new Object[]{ResourceGroovyMethods.getText(resource, engine.getCompilerConfiguration().getSourceEncoding())});
+        yieldUnescaped(ResourceGroovyMethods.getText(resource, engine.getCompilerConfiguration().getSourceEncoding()));
     }
 
-    protected void newLine(GroovyObject mkp) {
-        mkp.invokeMethod("yieldUnescaped", new Object[]{configuration.getNewLineString()});
-    }
-
-    public Object propertyMissing(String name) {
-        if (model.containsKey(name)) {
-            return model.get(name);
-        } else {
-            throw new MissingPropertyExceptionNoStack(name, BaseTemplate.class);
-        }
+    public void newLine() throws IOException {
+        yieldUnescaped(configuration.getNewLineString());
     }
 
     public Writer writeTo(final Writer out) throws IOException {
-        StreamingMarkupBuilder builder = new StreamingMarkupBuilder();
-        builder.setEncoding(configuration.getDeclarationEncoding());
-        builder.setExpandEmptyElements(configuration.isExpandEmptyElements());
-        builder.setUseDoubleQuotes(configuration.isUseDoubleQuotes());
-        Closure spec = (Closure) run();
-        Writable writable = builder.bind(spec);
-        return writable.writeTo(out);
+        try {
+            this.out = out;
+            run();
+            return out;
+        } finally {
+            this.out.flush();
+            this.out = null;
+        }
     }
 }

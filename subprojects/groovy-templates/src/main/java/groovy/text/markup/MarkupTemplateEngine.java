@@ -21,6 +21,7 @@ import groovy.lang.GroovyObject;
 import groovy.lang.Writable;
 import groovy.text.Template;
 import groovy.text.TemplateEngine;
+import groovy.transform.CompileStatic;
 import org.codehaus.groovy.antlr.AntlrParserPlugin;
 import org.codehaus.groovy.ast.ClassHelper;
 import org.codehaus.groovy.ast.ClassNode;
@@ -28,6 +29,7 @@ import org.codehaus.groovy.control.CompilationFailedException;
 import org.codehaus.groovy.control.CompilerConfiguration;
 import org.codehaus.groovy.control.ParserPlugin;
 import org.codehaus.groovy.control.ParserPluginFactory;
+import org.codehaus.groovy.control.customizers.ASTTransformationCustomizer;
 import org.codehaus.groovy.runtime.DefaultGroovyMethods;
 
 import java.io.IOException;
@@ -61,6 +63,8 @@ public class MarkupTemplateEngine extends TemplateEngine {
         compilerConfiguration = new CompilerConfiguration();
         templateConfiguration = tplConfig;
         compilerConfiguration.addCompilationCustomizers(new TemplateASTTransformer());
+        compilerConfiguration.addCompilationCustomizers(
+                new ASTTransformationCustomizer(Collections.singletonMap("extensions","groovy.text.markup.MarkupTemplateTypeCheckingExtension"),CompileStatic.class));
         groovyClassLoader = new GroovyClassLoader(parentLoader, compilerConfiguration);
     }
 

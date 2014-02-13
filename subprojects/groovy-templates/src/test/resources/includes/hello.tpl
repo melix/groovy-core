@@ -1,1 +1,1 @@
-mkp.yield 'Hello from include!'
+yield 'Hello from include!'

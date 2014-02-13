@@ -188,4 +188,31 @@ html {
         template.make().writeTo(rendered)
         assert rendered.toString() == '<yield/>'
     }
+
+    void testTagsWithAttributes() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        def template = engine.createTemplate '''
+html {
+    a(href:'foo.html', 'Link text')
+    tagWithQuote(attr:"fo'o")
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make().writeTo(rendered)
+        assert rendered.toString() == '<html><a href=\'foo.html\'>Link text</a><tagWithQuote attr=\'fo&apos;o\'/></html>'
+    }
+
+    void testTagsWithAttributesAndDoubleQuotes() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        engine.templateConfiguration.useDoubleQuotes = true
+        def template = engine.createTemplate '''
+html {
+    a(href:'foo.html', 'Link text')
+    tagWithQuote(attr:"fo'o")
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make().writeTo(rendered)
+        assert rendered.toString() == '<html><a href="foo.html">Link text</a><tagWithQuote attr="fo\'o"/></html>'
+    }
 }

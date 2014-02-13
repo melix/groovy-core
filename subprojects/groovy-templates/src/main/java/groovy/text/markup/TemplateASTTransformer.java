@@ -60,11 +60,6 @@ class TemplateASTTransformer extends CompilationCustomizer {
         Statement code = runMethod.getCode();
         MarkupBuilderCodeTransformer transformer = new MarkupBuilderCodeTransformer(source);
         code.visit(transformer);
-        ClosureExpression cl = new ClosureExpression(Parameter.EMPTY_ARRAY, code);
-        runMethod.setCode(new ExpressionStatement(cl));
-        VariableScopeVisitor visitor = new VariableScopeVisitor(source);
-        visitor.prepareVisit(classNode);
-        visitor.visitMethod(runMethod);
     }
 
     private void createConstructor(final ClassNode classNode) {
