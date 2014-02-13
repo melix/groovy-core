@@ -41,7 +41,7 @@ class MarkupTemplateTypeCheckingExtension extends GroovyTypeCheckingExtensionSup
         }
         methodNotFound { receiver, name, argList, argTypes, call ->
             if (call.lineNumber>0) {
-                if (call.implicitThis && argTypes && argTypes[-1] == CLOSURE_TYPE) {
+                if (call.implicitThis) {
                     currentScope.builderCalls << call
                 }
                 return makeDynamic(call, OBJECT_TYPE)

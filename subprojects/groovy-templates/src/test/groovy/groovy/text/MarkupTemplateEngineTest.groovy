@@ -215,4 +215,23 @@ html {
         template.make().writeTo(rendered)
         assert rendered.toString() == '<html><a href="foo.html">Link text</a><tagWithQuote attr="fo\'o"/></html>'
     }
+
+    void testLoopInTemplate() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        def model = [text:'Hello', persons:['Bob','Alice']]
+        def template = engine.createTemplate '''
+html {
+    body {
+        ul {
+            persons.each {
+                li("$text $it")
+            }
+        }
+    }
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make(model).writeTo(rendered)
+        assert rendered.toString() == '<html><body><ul><li>Hello Bob</li><li>Hello Alice</li></ul></body></html>'
+    }
 }

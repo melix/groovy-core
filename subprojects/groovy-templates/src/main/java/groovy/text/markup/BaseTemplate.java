@@ -27,7 +27,7 @@ import java.util.Map;
 import static groovy.xml.XmlUtil.escapeXml;
 
 public abstract class BaseTemplate implements Writable {
-    protected final Map model;
+    private final Map model;
     private final MarkupTemplateEngine engine;
     private final TemplateConfiguration configuration;
 
@@ -37,6 +37,10 @@ public abstract class BaseTemplate implements Writable {
         this.model = model;
         this.engine = templateEngine;
         this.configuration = configuration;
+    }
+
+    public Map getModel() {
+        return model;
     }
 
     public abstract Object run();
@@ -110,49 +114,46 @@ public abstract class BaseTemplate implements Writable {
 
     public Object methodMissing(String tagName, Object args) throws IOException {
         if (args instanceof Object[]) {
-            Object[] array = (Object[]) args;
-            Map attributes = null;
-            Object body = null;
-            for (Object o : array) {
-                if (o instanceof Map) {
-                    attributes = (Map) o;
-                } else {
-                    body = o;
-                }
-            }
-            out.write('<');
-            out.write(tagName);
-            writeAttributes(attributes);
+            final Writer wrt = out;
+            TagData tagData = new TagData(args).invoke();
+            Object body = tagData.getBody();
+            wrt.write('<');
+            wrt.write(tagName);
+            writeAttributes(tagData.getAttributes());
             if (body != null) {
-                out.write('>');
-                if (body instanceof Closure) {
-                    ((Closure) body).call();
-                } else {
-                    out.write(body.toString());
-                }
-                out.write("</");
-                out.write(tagName);
-                out.write('>');
+                wrt.write('>');
+                writeBody(body);
+                wrt.write("</");
+                wrt.write(tagName);
+                wrt.write('>');
             } else {
                 if (configuration.isExpandEmptyElements()) {
-                    out.write("></");
-                    out.write(tagName);
-                    out.write('>');
-
+                    wrt.write("></");
+                    wrt.write(tagName);
+                    wrt.write('>');
                 } else {
-                    out.write("/>");
+                    wrt.write("/>");
                 }
             }
         }
         return this;
     }
 
+    private void writeBody(final Object body) throws IOException {
+        if (body instanceof Closure) {
+            ((Closure) body).call();
+        } else {
+            out.write(body.toString());
+        }
+    }
+
     private void writeAttributes(final Map<?, ?> attributes) throws IOException {
         if (attributes == null) {
             return;
         }
+        final Writer wrt = out;
         for (Map.Entry entry : attributes.entrySet()) {
-            out.write(' ');
+            wrt.write(' ');
             String attName = entry.getKey().toString();
             String value = entry.getValue() == null ? "" : entry.getValue().toString();
             writeAttribute(attName, value);
@@ -194,6 +195,37 @@ public abstract class BaseTemplate implements Writable {
         } finally {
             this.out.flush();
             this.out = null;
+        }
+    }
+
+    private class TagData {
+        private final Object[] array;
+        private Map attributes;
+        private Object body;
+
+        public TagData(final Object args) {
+            this.array = (Object[])args;
+        }
+
+        public Map getAttributes() {
+            return attributes;
+        }
+
+        public Object getBody() {
+            return body;
+        }
+
+        public TagData invoke() {
+            attributes = null;
+            body = null;
+            for (Object o : array) {
+                if (o instanceof Map) {
+                    attributes = (Map) o;
+                } else {
+                    body = o;
+                }
+            }
+            return this;
         }
     }
 }
