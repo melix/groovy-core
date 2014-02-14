@@ -25,6 +25,7 @@ import org.codehaus.groovy.ast.expr.ClosureExpression
 import org.codehaus.groovy.ast.expr.ConstantExpression
 import org.codehaus.groovy.ast.expr.Expression
 import org.codehaus.groovy.ast.expr.MethodCallExpression
+import org.codehaus.groovy.ast.expr.TupleExpression
 import org.codehaus.groovy.ast.expr.VariableExpression
 import org.codehaus.groovy.control.SourceUnit
 
@@ -86,7 +87,7 @@ class MarkupTemplateTypeCheckingExtension extends GroovyTypeCheckingExtensionSup
         @Override
         public Expression transform(final Expression exp) {
             if (callsToBeReplaced.contains(exp)) {
-                def args = exp.arguments instanceof ArgumentListExpression?exp.arguments.expressions:[exp.arguments]
+                def args = exp.arguments instanceof TupleExpression?exp.arguments.expressions:[exp.arguments]
                 args*.visit(this)
                 // replace with direct call to methodMissing
                 def call = new MethodCallExpression(

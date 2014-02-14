@@ -45,17 +45,17 @@ public abstract class BaseTemplate implements Writable {
 
     public abstract Object run();
 
-    public BaseTemplate yieldUnescaped(CharSequence obj) throws IOException {
+    public BaseTemplate yieldUnescaped(Object obj) throws IOException {
         out.write(obj.toString());
         return this;
     }
 
-    public BaseTemplate yield(CharSequence obj) throws IOException {
+    public BaseTemplate yield(Object obj) throws IOException {
         out.write(escapeXml(obj.toString()));
         return this;
     }
 
-    public BaseTemplate comment(CharSequence cs) throws IOException {
+    public BaseTemplate comment(Object cs) throws IOException {
         out.write("<!--");
         out.write(cs.toString());
         out.write("-->");
