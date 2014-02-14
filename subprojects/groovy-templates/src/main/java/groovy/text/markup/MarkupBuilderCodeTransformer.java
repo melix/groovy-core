@@ -61,11 +61,22 @@ public class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer
         }
         if (exp instanceof VariableExpression) {
             VariableExpression var = (VariableExpression) exp;
-            if (var.getAccessedVariable() instanceof DynamicVariable && !"model".equals(var.getName())) {
+            if (var.getAccessedVariable() instanceof DynamicVariable) {
+                MethodCallExpression callGetModel = new MethodCallExpression(
+                        new VariableExpression("this"),
+                        "getModel",
+                        ArgumentListExpression.EMPTY_ARGUMENTS
+                );
+                callGetModel.setImplicitThis(true);
+                callGetModel.setSourcePosition(exp);
+                String varName = var.getName();
+                if ("model".equals(varName)) {
+                    return callGetModel;
+                }
                 MethodCallExpression mce = new MethodCallExpression(
-                        new VariableExpression("model"),
+                        callGetModel,
                         "get",
-                        new ArgumentListExpression(new ConstantExpression(var.getName()))
+                        new ArgumentListExpression(new ConstantExpression(varName))
                 );
                 mce.setSourcePosition(exp);
                 mce.setImplicitThis(false);
