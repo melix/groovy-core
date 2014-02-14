@@ -16,50 +16,136 @@
 
 package groovy.text.markup
 
-import org.codehaus.groovy.ast.ClassCodeExpressionTransformer
-import org.codehaus.groovy.ast.ClassHelper
-import org.codehaus.groovy.ast.MethodNode
-import org.codehaus.groovy.ast.expr.ArgumentListExpression
-import org.codehaus.groovy.ast.expr.ArrayExpression
-import org.codehaus.groovy.ast.expr.ClosureExpression
-import org.codehaus.groovy.ast.expr.ConstantExpression
-import org.codehaus.groovy.ast.expr.Expression
-import org.codehaus.groovy.ast.expr.MethodCallExpression
-import org.codehaus.groovy.ast.expr.TupleExpression
-import org.codehaus.groovy.ast.expr.VariableExpression
+import groovy.transform.CompileStatic
+import org.codehaus.groovy.antlr.AntlrParserPlugin
+import org.codehaus.groovy.antlr.parser.GroovyLexer
+import org.codehaus.groovy.antlr.parser.GroovyRecognizer
+import org.codehaus.groovy.ast.*
+import org.codehaus.groovy.ast.expr.*
+import org.codehaus.groovy.ast.stmt.EmptyStatement
+import org.codehaus.groovy.control.ResolveVisitor
 import org.codehaus.groovy.control.SourceUnit
-
-import static org.codehaus.groovy.ast.ClassHelper.*
+import org.codehaus.groovy.control.messages.SyntaxErrorMessage
+import org.codehaus.groovy.syntax.ParserException
+import org.codehaus.groovy.syntax.Reduction
+import org.codehaus.groovy.syntax.SyntaxException
 import org.codehaus.groovy.transform.stc.GroovyTypeCheckingExtensionSupport
+import org.codehaus.groovy.transform.stc.TypeCheckingContext
+
+import java.util.concurrent.atomic.AtomicReference
+
+import static org.codehaus.groovy.ast.ClassHelper.OBJECT_TYPE
 
 
 class MarkupTemplateTypeCheckingExtension extends GroovyTypeCheckingExtensionSupport.TypeCheckingDSL {
+
     @Override
     Object run() {
+        def modelTypesClassNodes
+
+        setup {
+            def modelTypes = MarkupTemplateEngine.TemplateGroovyClassLoader.modelTypes.get()
+            if (modelTypes!=null) {
+                modelTypesClassNodes = [:]
+                modelTypes.each { k, v ->
+                    modelTypesClassNodes[k] = buildNodeFromString(v, context)
+                }
+            }
+        }
+
         beforeVisitMethod {
             newScope {
                 builderCalls = []
             }
         }
         methodNotFound { receiver, name, argList, argTypes, call ->
-            if (call.lineNumber>0) {
+            if (call.lineNumber > 0) {
                 if (call.implicitThis) {
                     currentScope.builderCalls << call
+                    return makeDynamic(call, OBJECT_TYPE)
                 }
-                return makeDynamic(call, OBJECT_TYPE)
+                if (modelTypesClassNodes==null) {
+                    // unchecked mode
+                    return makeDynamic(call, OBJECT_TYPE)
+                }
             }
         }
+
+        onMethodSelection { call, node ->
+            if (isMethodCallExpression(call) && call.objectExpression.text=='this.getModel()' && modelTypesClassNodes!=null) {
+                def args = getArguments(call).expressions
+                if (args.size()==1 && isConstantExpression(args[0])) {
+                    def type = modelTypesClassNodes[args[0].text]
+                    if (type) {
+                        storeType(call, type)
+                    }
+                }
+            }
+        }
+
         unresolvedProperty { pexp ->
-            makeDynamic(pexp)
+            if (pexp.objectExpression.text=='this.getModel()') {
+                if (modelTypesClassNodes!=null) {
+                    // type checked mode detected!
+                    def type = modelTypesClassNodes[pexp.propertyAsString]
+                    if (type) {
+                        makeDynamic(pexp, type)
+                    }
+                } else {
+                    makeDynamic(pexp)
+                }
+            } else if (modelTypesClassNodes==null) {
+                // dynamic mode
+                makeDynamic(pexp)
+            }
         }
-        unresolvedAttribute { pexp ->
-            makeDynamic(pexp)
-        }
+
         afterVisitMethod { mn ->
             scopeExit {
                 new BuilderMethodReplacer(context.source, builderCalls).visitMethod(mn)
             }
         }
+    }
+
+    @CompileStatic
+    private static ClassNode buildNodeFromString(String option, TypeCheckingContext ctx) {
+        GroovyLexer lexer = new GroovyLexer(new StringReader(option))
+        final GroovyRecognizer rn = GroovyRecognizer.make(lexer)
+        rn.classOrInterfaceType(true);
+        final AtomicReference<ClassNode> ref = new AtomicReference<ClassNode>();
+        AntlrParserPlugin plugin = new AntlrParserPlugin() {
+            @Override
+            public ModuleNode buildAST(
+                    final SourceUnit sourceUnit,
+                    final ClassLoader classLoader, final Reduction cst) throws ParserException {
+                ref.set(makeTypeWithArguments(rn.getAST()));
+                return null;
+            }
+        };
+        plugin.buildAST(null, null, null);
+        ClassNode parsedNode = ref.get();
+        ClassNode dummyClass = new ClassNode("dummy", 0, ClassHelper.OBJECT_TYPE);
+        dummyClass.setModule(new ModuleNode(ctx.source));
+        MethodNode dummyMN = new MethodNode(
+                "dummy",
+                0,
+                parsedNode,
+                Parameter.EMPTY_ARRAY,
+                ClassNode.EMPTY_ARRAY,
+                EmptyStatement.INSTANCE
+        )
+        dummyClass.addMethod(dummyMN);
+        ResolveVisitor visitor = new ResolveVisitor(ctx.compilationUnit) {
+            @Override
+            protected void addError(final String msg, final ASTNode expr) {
+                ctx.errorCollector.addErrorAndContinue(new SyntaxErrorMessage(
+                        new SyntaxException(msg + '\n', expr.getLineNumber(), expr.getColumnNumber(), expr.getLastLineNumber(), expr.getLastColumnNumber()),
+                        ctx.source)
+                );
+            }
+        };
+        visitor.startResolving(dummyClass, ctx.source)
+        return dummyMN.getReturnType()
     }
 
     private static class BuilderMethodReplacer extends ClassCodeExpressionTransformer {
@@ -87,7 +173,7 @@ class MarkupTemplateTypeCheckingExtension extends GroovyTypeCheckingExtensionSup
         @Override
         public Expression transform(final Expression exp) {
             if (callsToBeReplaced.contains(exp)) {
-                def args = exp.arguments instanceof TupleExpression?exp.arguments.expressions:[exp.arguments]
+                def args = exp.arguments instanceof TupleExpression ? exp.arguments.expressions : [exp.arguments]
                 args*.visit(this)
                 // replace with direct call to methodMissing
                 def call = new MethodCallExpression(
@@ -97,7 +183,7 @@ class MarkupTemplateTypeCheckingExtension extends GroovyTypeCheckingExtensionSup
                                 new ConstantExpression(exp.getMethodAsString()),
                                 new ArrayExpression(
                                         OBJECT_TYPE,
-                                        [*args]
+                                        [* args]
                                 )
                         )
                 )

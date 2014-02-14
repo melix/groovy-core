@@ -105,7 +105,7 @@ html {
 }
 '''
         StringWriter rendered = new StringWriter()
-        def model = [persons:[[name:'Cedric'],[name:'Jochen']]]
+        def model = [persons: [[name: 'Cedric'], [name: 'Jochen']]]
         template.make(model).writeTo(rendered)
         assert rendered.toString() == '<html><body><ul><li>Cedric</li><li>Jochen</li></ul></body></html>'
 
@@ -219,7 +219,7 @@ html {
 
     void testLoopInTemplate() {
         MarkupTemplateEngine engine = new MarkupTemplateEngine()
-        def model = [text:'Hello', persons:['Bob','Alice']]
+        def model = [text: 'Hello', persons: ['Bob', 'Alice']]
         def template = engine.createTemplate '''
 html {
     body {
@@ -267,7 +267,7 @@ html {
     void testShouldEscapeUserInputAutomatically() {
         TemplateConfiguration config = new TemplateConfiguration()
         config.autoEscape = true
-        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader,config)
+        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader, config)
         def model = [text: '<xml>']
         def template = engine.createTemplate '''
 html {
@@ -282,7 +282,7 @@ html {
     void testShouldNotEscapeUserInputAutomaticallyEvenIfFlagSet() {
         TemplateConfiguration config = new TemplateConfiguration()
         config.autoEscape = true
-        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader,config)
+        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader, config)
         def model = [text: '<xml>']
         def template = engine.createTemplate '''
 html {
@@ -292,6 +292,86 @@ html {
         StringWriter rendered = new StringWriter()
         template.make(model).writeTo(rendered)
         assert rendered.toString() == '<html><body><xml></body></html>'
+    }
+
+
+    void testTypeCheckedModel() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        def template = engine.createTypeCheckedModelTemplate '''
+html {
+    body(text.toUpperCase())
+}
+''', [text: 'String']
+        def model = [text: 'Type checked!']
+        StringWriter rendered = new StringWriter()
+        template.make(model).writeTo(rendered)
+        assert rendered.toString() == '<html><body>TYPE CHECKED!</body></html>'
+
+    }
+
+    void testTypeCheckedModelShouldFail() {
+        assert shouldFail {
+            MarkupTemplateEngine engine = new MarkupTemplateEngine()
+            def template = engine.createTypeCheckedModelTemplate '''
+    html {
+        body(text.toUpperCase())
+    }
+    ''', [text: 'Integer']
+            def model = [text: 'Type checked!']
+            StringWriter rendered = new StringWriter()
+            template.make(model).writeTo(rendered)
+            assert rendered.toString() == '<html><body>TYPE CHECKED!</body></html>'
+        } =~ 'Cannot find matching method java.lang.Integer#toUpperCase()'
+
+    }
+
+    void testTypeCheckedModelShouldFailWithoutModelDescription() {
+        assert shouldFail {
+            MarkupTemplateEngine engine = new MarkupTemplateEngine()
+            def template = engine.createTypeCheckedModelTemplate '''
+    html {
+        body(p.name.toUpperCase())
+    }
+    ''', [:]
+            def model = [p: new Person(name: 'Cédric')]
+            StringWriter rendered = new StringWriter()
+            template.make(model).writeTo(rendered)
+        } =~ 'No such property: name'
+
+    }
+
+    void testTypeCheckedModelShouldSucceedWithModelDescription() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        def template = engine.createTypeCheckedModelTemplate '''
+    html {
+        body(p.name.toUpperCase())
+    }
+    ''', [p: 'groovy.text.MarkupTemplateEngineTest.Person']
+        def model = [p: new Person(name: 'Cedric')]
+        StringWriter rendered = new StringWriter()
+        template.make(model).writeTo(rendered)
+        assert rendered.toString() == '<html><body>CEDRIC</body></html>'
+    }
+
+    void testTypeCheckedModelShouldSucceedWithModelDescriptionUsingGenerics() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        def template = engine.createTypeCheckedModelTemplate '''
+    html {
+        ul {
+            persons.each { p ->
+                li(p.name.toUpperCase())
+            }
+        }
+    }
+    ''', [persons: 'List<groovy.text.MarkupTemplateEngineTest.Person>']
+        def model = [persons: [new Person(name: 'Cedric')]]
+        StringWriter rendered = new StringWriter()
+        template.make(model).writeTo(rendered)
+        assert rendered.toString() == '<html><ul><li>CEDRIC</li></ul></html>'
+    }
+
+    public static class Person {
+        String name
     }
 
 }

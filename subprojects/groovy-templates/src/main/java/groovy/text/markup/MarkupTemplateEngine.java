@@ -34,6 +34,7 @@ import org.codehaus.groovy.runtime.DefaultGroovyMethods;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
 import java.net.URL;
 import java.util.Collections;
 import java.util.Map;
@@ -51,7 +52,7 @@ public class MarkupTemplateEngine extends TemplateEngine {
 
     private final static AtomicLong counter = new AtomicLong();
 
-    private final GroovyClassLoader groovyClassLoader;
+    private final TemplateGroovyClassLoader groovyClassLoader;
     private final CompilerConfiguration compilerConfiguration;
     private final TemplateConfiguration templateConfiguration;
 
@@ -65,16 +66,28 @@ public class MarkupTemplateEngine extends TemplateEngine {
         compilerConfiguration.addCompilationCustomizers(new TemplateASTTransformer(tplConfig));
         compilerConfiguration.addCompilationCustomizers(
                 new ASTTransformationCustomizer(Collections.singletonMap("extensions","groovy.text.markup.MarkupTemplateTypeCheckingExtension"),CompileStatic.class));
-        groovyClassLoader = new GroovyClassLoader(parentLoader, compilerConfiguration);
+        groovyClassLoader = new TemplateGroovyClassLoader(parentLoader, compilerConfiguration);
     }
 
     public Template createTemplate(final Reader reader) throws CompilationFailedException, ClassNotFoundException, IOException {
-        return new StreamingMarkupBuilderTemplate(reader);
+        return new StreamingMarkupBuilderTemplate(reader, null);
+    }
+
+    public Template createTypeCheckedModelTemplate(final String source, Map<String,String> modelTypes) throws CompilationFailedException, ClassNotFoundException, IOException {
+        return new StreamingMarkupBuilderTemplate(new StringReader(source), modelTypes);
+    }
+
+    public Template createTypeCheckedModelTemplate(final Reader reader, Map<String,String> modelTypes) throws CompilationFailedException, ClassNotFoundException, IOException {
+        return new StreamingMarkupBuilderTemplate(reader, modelTypes);
     }
 
     @Override
     public Template createTemplate(final URL resource) throws CompilationFailedException, ClassNotFoundException, IOException {
-        return new StreamingMarkupBuilderTemplate(resource);
+        return new StreamingMarkupBuilderTemplate(resource, null);
+    }
+
+    public Template createTemplate(final URL resource, Map<String,String> modelTypes) throws CompilationFailedException, ClassNotFoundException, IOException {
+        return new StreamingMarkupBuilderTemplate(resource, modelTypes);
     }
 
     public GroovyClassLoader getTemplateLoader() {
@@ -93,13 +106,13 @@ public class MarkupTemplateEngine extends TemplateEngine {
         final Class<BaseTemplate> templateClass;
 
         @SuppressWarnings("unchecked")
-        public StreamingMarkupBuilderTemplate(final Reader reader) {
-            templateClass = groovyClassLoader.parseClass(new GroovyCodeSource(reader, "GeneratedMarkupTemplate" + counter.getAndIncrement(), ""));
+        public StreamingMarkupBuilderTemplate(final Reader reader, Map<String,String> modelTypes) {
+            templateClass = groovyClassLoader.parseClass(new GroovyCodeSource(reader, "GeneratedMarkupTemplate" + counter.getAndIncrement(), ""), modelTypes);
         }
 
         @SuppressWarnings("unchecked")
-        public StreamingMarkupBuilderTemplate(final URL resource) throws IOException {
-            templateClass = groovyClassLoader.parseClass(new GroovyCodeSource(resource));
+        public StreamingMarkupBuilderTemplate(final URL resource, Map<String,String> modelTypes) throws IOException {
+            templateClass = groovyClassLoader.parseClass(new GroovyCodeSource(resource), modelTypes);
         }
 
         public Writable make() {
@@ -108,6 +121,27 @@ public class MarkupTemplateEngine extends TemplateEngine {
 
         public Writable make(final Map binding) {
             return DefaultGroovyMethods.newInstance(templateClass, new Object[]{MarkupTemplateEngine.this, binding, templateConfiguration});
+        }
+    }
+
+    /**
+     * A specialized GroovyClassLoader which will support passing values to the type checking extension thanks
+     * to a thread local.
+     */
+    static class TemplateGroovyClassLoader extends GroovyClassLoader {
+        final static ThreadLocal<Map<String,String>> modelTypes = new ThreadLocal<Map<String, String>>();
+
+        public TemplateGroovyClassLoader(final ClassLoader parentLoader, final CompilerConfiguration compilerConfiguration) {
+            super(parentLoader, compilerConfiguration);
+        }
+
+        public Class parseClass(final GroovyCodeSource codeSource, Map<String,String> hints) throws CompilationFailedException {
+            modelTypes.set(hints);
+            try {
+                return super.parseClass(codeSource);
+            } finally {
+                modelTypes.set(null);
+            }
         }
     }
 
