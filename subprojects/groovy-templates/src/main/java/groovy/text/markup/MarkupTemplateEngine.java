@@ -62,17 +62,17 @@ public class MarkupTemplateEngine extends TemplateEngine {
     public MarkupTemplateEngine(ClassLoader parentLoader, TemplateConfiguration tplConfig) {
         compilerConfiguration = new CompilerConfiguration();
         templateConfiguration = tplConfig;
-        compilerConfiguration.addCompilationCustomizers(new TemplateASTTransformer());
+        compilerConfiguration.addCompilationCustomizers(new TemplateASTTransformer(tplConfig));
         compilerConfiguration.addCompilationCustomizers(
                 new ASTTransformationCustomizer(Collections.singletonMap("extensions","groovy.text.markup.MarkupTemplateTypeCheckingExtension"),CompileStatic.class));
         groovyClassLoader = new GroovyClassLoader(parentLoader, compilerConfiguration);
     }
 
-    @Override
     public Template createTemplate(final Reader reader) throws CompilationFailedException, ClassNotFoundException, IOException {
         return new StreamingMarkupBuilderTemplate(reader);
     }
 
+    @Override
     public Template createTemplate(final URL resource) throws CompilationFailedException, ClassNotFoundException, IOException {
         return new StreamingMarkupBuilderTemplate(resource);
     }

@@ -26,6 +26,7 @@ public class TemplateConfiguration {
     private boolean expandEmptyElements;
     private boolean useDoubleQuotes;
     private String newLineString = System.getProperty("line.separator");
+    private boolean autoEscape = false;
 
     /**
      * @return the encoding used in the declaration header
@@ -72,5 +73,23 @@ public class TemplateConfiguration {
 
     public void setNewLineString(final String newLineString) {
         this.newLineString = newLineString;
+    }
+
+    /**
+     * @return true if variables in the model which are assignable to {@link java.lang.CharSequence} should be
+     * automatically escaped.
+     */
+    public boolean isAutoEscape() {
+        return autoEscape;
+    }
+
+    /**
+     * Set to true if you want variables in the model which are assignable to {@link java.lang.CharSequence} to
+     * be escaped automatically in templates. If this flag is set to true and that you want a value not to be
+     * automatically escaped, then you need to use <i>${model.variable}</i> instead of <i>$variable</i>
+     * @param autoEscape value if the autoEscape flag
+     */
+    public void setAutoEscape(final boolean autoEscape) {
+        this.autoEscape = autoEscape;
     }
 }

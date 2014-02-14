@@ -41,9 +41,11 @@ import org.objectweb.asm.Opcodes;
 class TemplateASTTransformer extends CompilationCustomizer {
 
     private static final ClassNode TEMPLATECONFIG_CLASSNODE = ClassHelper.make(TemplateConfiguration.class);
+    private final TemplateConfiguration config;
 
-    public TemplateASTTransformer() {
+    public TemplateASTTransformer(TemplateConfiguration config) {
         super(CompilePhase.SEMANTIC_ANALYSIS);
+        this.config = config;
     }
 
     @Override
@@ -58,7 +60,7 @@ class TemplateASTTransformer extends CompilationCustomizer {
     private void transformRunMethod(final ClassNode classNode, final SourceUnit source) {
         MethodNode runMethod = classNode.getDeclaredMethod("run", Parameter.EMPTY_ARRAY);
         Statement code = runMethod.getCode();
-        MarkupBuilderCodeTransformer transformer = new MarkupBuilderCodeTransformer(source);
+        MarkupBuilderCodeTransformer transformer = new MarkupBuilderCodeTransformer(source, config.isAutoEscape());
         code.visit(transformer);
     }
 

@@ -38,9 +38,11 @@ import java.util.Set;
 public class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer {
 
     private final SourceUnit unit;
+    private final boolean autoEscape;
 
-    public MarkupBuilderCodeTransformer(final SourceUnit unit) {
+    public MarkupBuilderCodeTransformer(final SourceUnit unit, final boolean autoEscape) {
         this.unit = unit;
+        this.autoEscape = autoEscape;
     }
 
     @Override
@@ -59,7 +61,7 @@ public class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer
         }
         if (exp instanceof VariableExpression) {
             VariableExpression var = (VariableExpression) exp;
-            if (var.getAccessedVariable() instanceof DynamicVariable) {
+            if (var.getAccessedVariable() instanceof DynamicVariable && !"model".equals(var.getName())) {
                 MethodCallExpression mce = new MethodCallExpression(
                         new VariableExpression("model"),
                         "get",
@@ -67,7 +69,14 @@ public class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer
                 );
                 mce.setSourcePosition(exp);
                 mce.setImplicitThis(false);
-                return mce;
+                MethodCallExpression yield = new MethodCallExpression(
+                        new VariableExpression("this"),
+                        "tryEscape",
+                        new ArgumentListExpression(mce)
+                );
+                yield.setImplicitThis(true);
+                yield.setSourcePosition(exp);
+                return autoEscape?yield:mce;
             }
         }
         return super.transform(exp);

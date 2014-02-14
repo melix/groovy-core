@@ -17,6 +17,7 @@
 package groovy.text
 
 import groovy.text.markup.MarkupTemplateEngine
+import groovy.text.markup.TemplateConfiguration
 
 class MarkupTemplateEngineTest extends GroovyTestCase {
     void testSimpleTemplate() {
@@ -248,6 +249,49 @@ html {
         StringWriter rendered = new StringWriter()
         template.make(model).writeTo(rendered)
         assert rendered.toString() == '<html><body>HELLO</body></html>'
+    }
+
+    void testShouldNotEscapeUserInputAutomatically() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        def model = [text: '<xml>']
+        def template = engine.createTemplate '''
+html {
+    body(text)
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make(model).writeTo(rendered)
+        assert rendered.toString() == '<html><body><xml></body></html>'
+    }
+
+    void testShouldEscapeUserInputAutomatically() {
+        TemplateConfiguration config = new TemplateConfiguration()
+        config.autoEscape = true
+        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader,config)
+        def model = [text: '<xml>']
+        def template = engine.createTemplate '''
+html {
+    body(text)
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make(model).writeTo(rendered)
+        assert rendered.toString() == '<html><body>&lt;xml&gt;</body></html>'
+    }
+
+    void testShouldNotEscapeUserInputAutomaticallyEvenIfFlagSet() {
+        TemplateConfiguration config = new TemplateConfiguration()
+        config.autoEscape = true
+        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader,config)
+        def model = [text: '<xml>']
+        def template = engine.createTemplate '''
+html {
+    body(model.text)
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make(model).writeTo(rendered)
+        assert rendered.toString() == '<html><body><xml></body></html>'
     }
 
 }

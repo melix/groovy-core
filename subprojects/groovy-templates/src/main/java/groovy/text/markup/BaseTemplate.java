@@ -22,12 +22,15 @@ import org.codehaus.groovy.runtime.ResourceGroovyMethods;
 import java.io.IOException;
 import java.io.Writer;
 import java.net.URL;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
 import static groovy.xml.XmlUtil.escapeXml;
 
 public abstract class BaseTemplate implements Writable {
+    private final static Map EMPTY_MODEL = Collections.emptyMap();
+
     private final Map model;
     private final MarkupTemplateEngine engine;
     private final TemplateConfiguration configuration;
@@ -35,7 +38,7 @@ public abstract class BaseTemplate implements Writable {
     private Writer out;
 
     public BaseTemplate(final MarkupTemplateEngine templateEngine, final Map model, final TemplateConfiguration configuration) {
-        this.model = model;
+        this.model = model==null?EMPTY_MODEL:model;
         this.engine = templateEngine;
         this.configuration = configuration;
     }
@@ -190,6 +193,13 @@ public abstract class BaseTemplate implements Writable {
     public void includeUnescaped(String templatePath) throws IOException {
         URL resource = getIncludedResource(templatePath);
         yieldUnescaped(ResourceGroovyMethods.getText(resource, engine.getCompilerConfiguration().getSourceEncoding()));
+    }
+
+    public Object tryEscape(Object contents) {
+        if (contents instanceof CharSequence) {
+            return escapeXml(contents.toString());
+        }
+        return contents;
     }
 
     public void newLine() throws IOException {
