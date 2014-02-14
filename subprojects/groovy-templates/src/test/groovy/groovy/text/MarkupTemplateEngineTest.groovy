@@ -234,4 +234,20 @@ html {
         template.make(model).writeTo(rendered)
         assert rendered.toString() == '<html><body><ul><li>Hello Bob</li><li>Hello Alice</li></ul></body></html>'
     }
+
+    void testHelperFunctionInBinding() {
+        MarkupTemplateEngine engine = new MarkupTemplateEngine()
+        def model = [text: { it.toUpperCase() }]
+        def template = engine.createTemplate '''
+html {
+    body {
+        text('hello')
+    }
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make(model).writeTo(rendered)
+        assert rendered.toString() == '<html><body>HELLO</body></html>'
+    }
+
 }

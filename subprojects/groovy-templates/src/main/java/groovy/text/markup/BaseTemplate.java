@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.net.URL;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
 import static groovy.xml.XmlUtil.escapeXml;
 
@@ -113,7 +114,15 @@ public abstract class BaseTemplate implements Writable {
     }
 
     public Object methodMissing(String tagName, Object args) throws IOException {
-        if (args instanceof Object[]) {
+        Object o = model.get(tagName);
+        if (o instanceof Closure) {
+            if (args instanceof Object[]) {
+                yieldUnescaped(((Closure) o).call((Object[])args));
+                return this;
+            }
+            yieldUnescaped(((Closure) o).call(args));
+            return this;
+        } else if (args instanceof Object[]) {
             final Writer wrt = out;
             TagData tagData = new TagData(args).invoke();
             Object body = tagData.getBody();
