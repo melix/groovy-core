@@ -286,7 +286,7 @@ html {
         def model = [text: '<xml>']
         def template = engine.createTemplate '''
 html {
-    body(model.text)
+    body(unescaped.text)
 }
 '''
         StringWriter rendered = new StringWriter()

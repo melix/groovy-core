@@ -86,7 +86,7 @@ public class TemplateConfiguration {
     /**
      * Set to true if you want variables in the model which are assignable to {@link java.lang.CharSequence} to
      * be escaped automatically in templates. If this flag is set to true and that you want a value not to be
-     * automatically escaped, then you need to use <i>${model.variable}</i> instead of <i>$variable</i>
+     * automatically escaped, then you need to use <i>${unescaped.variable}</i> instead of <i>$variable</i>
      * @param autoEscape value if the autoEscape flag
      */
     public void setAutoEscape(final boolean autoEscape) {

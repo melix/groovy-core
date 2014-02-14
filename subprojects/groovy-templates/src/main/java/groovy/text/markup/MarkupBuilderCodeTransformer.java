@@ -70,7 +70,7 @@ public class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer
                 callGetModel.setImplicitThis(true);
                 callGetModel.setSourcePosition(exp);
                 String varName = var.getName();
-                if ("model".equals(varName)) {
+                if ("model".equals(varName) || "unescaped".equals(varName)) {
                     return callGetModel;
                 }
                 MethodCallExpression mce = new MethodCallExpression(
