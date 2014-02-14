@@ -36,16 +36,6 @@ import java.util.List;
 import java.util.Set;
 
 public class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer {
-    private final static Set<String> SPECIAL_METHODS = Collections.unmodifiableSet(
-            new HashSet<String>() {{
-                add("yield");
-                add("yieldUnescaped");
-                add("comment");
-                add("namespaces");
-                add("pi");
-                add("xmlDeclaration");
-            }}
-    );
 
     private final SourceUnit unit;
 
@@ -94,10 +84,11 @@ public class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer
             } else {
                 args = Collections.singletonList(exp.getArguments());
             }
+            Expression newArguments = transform(new ArgumentListExpression(new ConstantExpression(name.substring(1)), new ArrayExpression(ClassHelper.OBJECT_TYPE, args)));
             MethodCallExpression call = new MethodCallExpression(
                     new VariableExpression("this"),
                     "methodMissing",
-                    new ArgumentListExpression(new ConstantExpression(name.substring(1)),new ArrayExpression(ClassHelper.OBJECT_TYPE,args))
+                    newArguments
             );
             call.setImplicitThis(true);
             call.setSafe(exp.isSafe());

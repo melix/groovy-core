@@ -105,6 +105,9 @@ class MarkupTemplateTypeCheckingExtension extends GroovyTypeCheckingExtensionSup
                 call.spreadSafe = exp.spreadSafe
                 call.methodTarget = METHOD_MISSING
                 call
+            } else if (exp instanceof ClosureExpression) {
+                exp.code.visit(this)
+                super.transform(exp)
             } else {
                 super.transform(exp)
             }
