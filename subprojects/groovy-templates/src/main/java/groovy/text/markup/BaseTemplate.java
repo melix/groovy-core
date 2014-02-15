@@ -36,6 +36,7 @@ public abstract class BaseTemplate implements Writable {
     private final TemplateConfiguration configuration;
 
     private Writer out;
+    private boolean doWriteIndent;
 
     public BaseTemplate(final MarkupTemplateEngine templateEngine, final Map model, final Map modelTypes, final TemplateConfiguration configuration) {
         this.model = model==null?EMPTY_MODEL:model;
@@ -51,16 +52,19 @@ public abstract class BaseTemplate implements Writable {
     public abstract Object run();
 
     public BaseTemplate yieldUnescaped(Object obj) throws IOException {
+        writeIndent();
         out.write(obj.toString());
         return this;
     }
 
     public BaseTemplate yield(Object obj) throws IOException {
+        writeIndent();
         out.write(escapeXml(obj.toString()));
         return this;
     }
 
     public BaseTemplate comment(Object cs) throws IOException {
+        writeIndent();
         out.write("<!--");
         out.write(cs.toString());
         out.write("-->");
@@ -111,6 +115,13 @@ public abstract class BaseTemplate implements Writable {
         }
     }
 
+    private void writeIndent() throws IOException {
+        if (out instanceof DelegatingIndentWriter && doWriteIndent) {
+            ((DelegatingIndentWriter)out).writeIndent();
+            doWriteIndent = false;
+        }
+    }
+
     private String escapeQuotes(String str) {
         String quote = configuration.isUseDoubleQuotes() ? "\"" : "'";
         String escape = configuration.isUseDoubleQuotes() ? "&quote;" : "&apos;";
@@ -130,12 +141,14 @@ public abstract class BaseTemplate implements Writable {
             final Writer wrt = out;
             TagData tagData = new TagData(args).invoke();
             Object body = tagData.getBody();
+            writeIndent();
             wrt.write('<');
             wrt.write(tagName);
             writeAttributes(tagData.getAttributes());
             if (body != null) {
                 wrt.write('>');
                 writeBody(body);
+                writeIndent();
                 wrt.write("</");
                 wrt.write(tagName);
                 wrt.write('>');
@@ -153,8 +166,15 @@ public abstract class BaseTemplate implements Writable {
     }
 
     private void writeBody(final Object body) throws IOException {
+        boolean indent = out instanceof DelegatingIndentWriter;
         if (body instanceof Closure) {
+            if (indent) {
+                ((DelegatingIndentWriter)(out)).next();
+            }
             ((Closure) body).call();
+            if (indent) {
+                ((DelegatingIndentWriter)(out)).previous();
+            }
         } else {
             out.write(body.toString());
         }
@@ -205,17 +225,22 @@ public abstract class BaseTemplate implements Writable {
 
     public void newLine() throws IOException {
         yieldUnescaped(configuration.getNewLineString());
+        doWriteIndent = true;
     }
 
     public Writer writeTo(final Writer out) throws IOException {
         try {
-            this.out = out;
+            this.out = createWriter(out);
             run();
             return out;
         } finally {
             this.out.flush();
             this.out = null;
         }
+    }
+
+    private Writer createWriter(final Writer out) {
+        return configuration.isAutoIndent() && !(out instanceof DelegatingIndentWriter)?new DelegatingIndentWriter(out, configuration.getAutoIndentString()):out;
     }
 
     private class TagData {

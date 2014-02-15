@@ -25,11 +25,15 @@ import groovy.transform.CompileStatic;
 import org.codehaus.groovy.antlr.AntlrParserPlugin;
 import org.codehaus.groovy.ast.ClassHelper;
 import org.codehaus.groovy.ast.ClassNode;
+import org.codehaus.groovy.classgen.GeneratorContext;
 import org.codehaus.groovy.control.CompilationFailedException;
+import org.codehaus.groovy.control.CompilePhase;
 import org.codehaus.groovy.control.CompilerConfiguration;
 import org.codehaus.groovy.control.ParserPlugin;
 import org.codehaus.groovy.control.ParserPluginFactory;
+import org.codehaus.groovy.control.SourceUnit;
 import org.codehaus.groovy.control.customizers.ASTTransformationCustomizer;
+import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.codehaus.groovy.runtime.DefaultGroovyMethods;
 
 import java.io.IOException;

@@ -386,6 +386,67 @@ html {
         } =~ 'Cannot find matching method java.lang.Integer#toUpperCase()'
     }
 
+    void testSimpleAutoIndent() {
+        TemplateConfiguration config = new TemplateConfiguration()
+        config.autoIndent = true
+        config.newLineString = '\n'
+        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader, config)
+        def template = engine.createTemplate '''
+html {
+    newLine()
+    body {
+        newLine()
+        p('Test')
+        newLine()
+    }
+    newLine()
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make().writeTo(rendered)
+        assert rendered.toString() == '''<html>
+    <body>
+        <p>Test</p>
+    </body>
+</html>'''
+    }
+
+   void testSimpleAutoIndentShouldAddNewLineInLoop() {
+        TemplateConfiguration config = new TemplateConfiguration()
+        config.autoIndent = true
+        config.newLineString = '\n'
+        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader, config)
+        def template = engine.createTemplate '''
+html {
+    newLine()
+    body {
+        newLine()
+        ul {
+            newLine()
+            persons.eachWithIndex { p,i ->
+                if (i) newLine()
+                li(p)
+            }
+            newLine()
+        }
+        newLine()
+    }
+    newLine()
+}
+'''
+        StringWriter rendered = new StringWriter()
+        def model = [persons:['Cedric','Jochen']]
+        template.make(model).writeTo(rendered)
+        assert rendered.toString() == '''<html>
+    <body>
+        <ul>
+            <li>Cedric</li>
+            <li>Jochen</li>
+        </ul>
+    </body>
+</html>'''
+    }
+
     public static class Person {
         String name
     }

@@ -27,6 +27,8 @@ public class TemplateConfiguration {
     private boolean useDoubleQuotes;
     private String newLineString = System.getProperty("line.separator");
     private boolean autoEscape = false;
+    private boolean autoIndent = false;
+    private String autoIndentString = DelegatingIndentWriter.SPACES;
 
     /**
      * @return the encoding used in the declaration header
@@ -91,5 +93,30 @@ public class TemplateConfiguration {
      */
     public void setAutoEscape(final boolean autoEscape) {
         this.autoEscape = autoEscape;
+    }
+
+    /**
+     * @return true if the template engine should handle indents automatically
+     */
+    public boolean isAutoIndent() {
+        return autoIndent;
+    }
+
+    /**
+     * Set this to true if you want the template engine to render indents automatically. In that case,
+     * the supplied writer is wrapped into a {@link groovy.text.markup.DelegatingIndentWriter} and indents
+     * are inserted after each call to newLine.
+     * @param autoIndent the auto-indent flag
+     */
+    public void setAutoIndent(final boolean autoIndent) {
+        this.autoIndent = autoIndent;
+    }
+
+    public String getAutoIndentString() {
+        return autoIndentString;
+    }
+
+    public void setAutoIndentString(final String autoIndentString) {
+        this.autoIndentString = autoIndentString;
     }
 }
