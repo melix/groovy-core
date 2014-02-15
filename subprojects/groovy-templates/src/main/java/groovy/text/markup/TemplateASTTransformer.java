@@ -25,6 +25,7 @@ import org.codehaus.groovy.ast.VariableScope;
 import org.codehaus.groovy.ast.expr.ArgumentListExpression;
 import org.codehaus.groovy.ast.expr.ClosureExpression;
 import org.codehaus.groovy.ast.expr.ConstructorCallExpression;
+import org.codehaus.groovy.ast.expr.Expression;
 import org.codehaus.groovy.ast.expr.MethodCallExpression;
 import org.codehaus.groovy.ast.expr.VariableExpression;
 import org.codehaus.groovy.ast.stmt.BlockStatement;
@@ -37,6 +38,9 @@ import org.codehaus.groovy.control.CompilePhase;
 import org.codehaus.groovy.control.SourceUnit;
 import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.objectweb.asm.Opcodes;
+
+import java.util.LinkedList;
+import java.util.List;
 
 class TemplateASTTransformer extends CompilationCustomizer {
 
@@ -68,12 +72,15 @@ class TemplateASTTransformer extends CompilationCustomizer {
         Parameter[] params = new Parameter[]{
                 new Parameter(MarkupTemplateEngine.MARKUPTEMPLATEENGINE_CLASSNODE, "engine"),
                 new Parameter(ClassHelper.MAP_TYPE.getPlainNodeReference(), "model"),
+                new Parameter(ClassHelper.MAP_TYPE.getPlainNodeReference(), "modelTypes"),
                 new Parameter(TEMPLATECONFIG_CLASSNODE, "tplConfig")
         };
+        List<Expression> vars = new LinkedList<Expression>();
+        for (Parameter param : params) {
+            vars.add(new VariableExpression(param));
+        }
         ExpressionStatement body = new ExpressionStatement(
-                new ConstructorCallExpression(ClassNode.SUPER,
-                        new ArgumentListExpression(new VariableExpression(params[0]), new VariableExpression(params[1]), new VariableExpression(params[2])))
-        );
+                new ConstructorCallExpression(ClassNode.SUPER, new ArgumentListExpression(vars)));
         ConstructorNode ctor = new ConstructorNode(Opcodes.ACC_PUBLIC, params, ClassNode.EMPTY_ARRAY, body);
         classNode.addConstructor(ctor);
     }

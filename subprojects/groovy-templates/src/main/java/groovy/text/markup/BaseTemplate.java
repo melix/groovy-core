@@ -24,7 +24,6 @@ import java.io.Writer;
 import java.net.URL;
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.Callable;
 
 import static groovy.xml.XmlUtil.escapeXml;
 
@@ -32,15 +31,17 @@ public abstract class BaseTemplate implements Writable {
     private final static Map EMPTY_MODEL = Collections.emptyMap();
 
     private final Map model;
+    private final Map modelTypes;
     private final MarkupTemplateEngine engine;
     private final TemplateConfiguration configuration;
 
     private Writer out;
 
-    public BaseTemplate(final MarkupTemplateEngine templateEngine, final Map model, final TemplateConfiguration configuration) {
+    public BaseTemplate(final MarkupTemplateEngine templateEngine, final Map model, final Map modelTypes, final TemplateConfiguration configuration) {
         this.model = model==null?EMPTY_MODEL:model;
         this.engine = templateEngine;
         this.configuration = configuration;
+        this.modelTypes = modelTypes;
     }
 
     public Map getModel() {
@@ -174,7 +175,7 @@ public abstract class BaseTemplate implements Writable {
 
     public void includeGroovy(String templatePath) throws IOException, ClassNotFoundException {
         URL resource = getIncludedResource(templatePath);
-        engine.createTemplate(resource).make(model).writeTo(out);
+        engine.createTemplate(resource, modelTypes).make(model).writeTo(out);
     }
 
     private URL getIncludedResource(final String templatePath) throws IOException {

@@ -104,15 +104,18 @@ public class MarkupTemplateEngine extends TemplateEngine {
 
     private class StreamingMarkupBuilderTemplate implements Template {
         final Class<BaseTemplate> templateClass;
+        final Map<String,String> modeltypes;
 
         @SuppressWarnings("unchecked")
         public StreamingMarkupBuilderTemplate(final Reader reader, Map<String,String> modelTypes) {
             templateClass = groovyClassLoader.parseClass(new GroovyCodeSource(reader, "GeneratedMarkupTemplate" + counter.getAndIncrement(), ""), modelTypes);
+            this.modeltypes = modelTypes;
         }
 
         @SuppressWarnings("unchecked")
         public StreamingMarkupBuilderTemplate(final URL resource, Map<String,String> modelTypes) throws IOException {
             templateClass = groovyClassLoader.parseClass(new GroovyCodeSource(resource), modelTypes);
+            this.modeltypes = modelTypes;
         }
 
         public Writable make() {
@@ -120,7 +123,7 @@ public class MarkupTemplateEngine extends TemplateEngine {
         }
 
         public Writable make(final Map binding) {
-            return DefaultGroovyMethods.newInstance(templateClass, new Object[]{MarkupTemplateEngine.this, binding, templateConfiguration});
+            return DefaultGroovyMethods.newInstance(templateClass, new Object[]{MarkupTemplateEngine.this, binding, modeltypes, templateConfiguration});
         }
     }
 

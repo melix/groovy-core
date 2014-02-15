@@ -370,6 +370,22 @@ html {
         assert rendered.toString() == '<html><ul><li>CEDRIC</li></ul></html>'
     }
 
+    void testTypeCheckedTemplateShouldFailInInclude() {
+        assert shouldFail {
+            MarkupTemplateEngine engine = new MarkupTemplateEngine()
+            def template = engine.createTypeCheckedModelTemplate '''
+    html {
+        body {
+            include template:'includes/typecheckedinclude.tpl'
+        }
+    }
+    ''', [text: 'Integer']
+            def model = [text: 'Type checked!']
+            StringWriter rendered = new StringWriter()
+            template.make(model).writeTo(rendered)
+        } =~ 'Cannot find matching method java.lang.Integer#toUpperCase()'
+    }
+
     public static class Person {
         String name
     }
