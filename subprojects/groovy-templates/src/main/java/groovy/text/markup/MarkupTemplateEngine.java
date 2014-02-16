@@ -70,6 +70,16 @@ public class MarkupTemplateEngine extends TemplateEngine {
         compilerConfiguration.addCompilationCustomizers(new TemplateASTTransformer(tplConfig));
         compilerConfiguration.addCompilationCustomizers(
                 new ASTTransformationCustomizer(Collections.singletonMap("extensions","groovy.text.markup.MarkupTemplateTypeCheckingExtension"),CompileStatic.class));
+        if (templateConfiguration.isAutoNewLine()) {
+            compilerConfiguration.addCompilationCustomizers(
+                    new CompilationCustomizer(CompilePhase.CONVERSION) {
+                        @Override
+                        public void call(final SourceUnit source, final GeneratorContext context, final ClassNode classNode) throws CompilationFailedException {
+                            new AutoNewLineTransformer(source).visitClass(classNode);
+                        }
+                    }
+            );
+        }
         groovyClassLoader = new TemplateGroovyClassLoader(parentLoader, compilerConfiguration);
     }
 

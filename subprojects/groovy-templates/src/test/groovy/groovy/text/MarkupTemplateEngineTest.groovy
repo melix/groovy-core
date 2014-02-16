@@ -447,6 +447,60 @@ html {
 </html>'''
     }
 
+    void testSimpleAutoIndentShouldAutoAddNewLineInLoop() {
+        TemplateConfiguration config = new TemplateConfiguration()
+        config.autoIndent = true
+        config.autoNewLine = true
+        config.newLineString = '\n'
+        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader, config)
+        def template = engine.createTemplate '''
+html {
+    body {
+        ul {
+            persons.each {
+                li(it)
+                newLine()
+            }
+        }
+    }
+}
+'''
+        StringWriter rendered = new StringWriter()
+        def model = [persons:['Cedric','Jochen']]
+        template.make(model).writeTo(rendered)
+        assert rendered.toString() == '''<html>
+    <body>
+        <ul>
+            <li>Cedric</li>
+            <li>Jochen</li>
+            
+        </ul>
+    </body>
+</html>'''
+    }
+
+    void testSimpleAutoIndentWithAutoNewLine() {
+        TemplateConfiguration config = new TemplateConfiguration()
+        config.autoIndent = true
+        config.autoNewLine = true
+        config.newLineString = '\n'
+        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader, config)
+        def template = engine.createTemplate '''
+html {
+    body {
+        p('Test')
+    }
+}
+'''
+        StringWriter rendered = new StringWriter()
+        template.make().writeTo(rendered)
+        assert rendered.toString() == '''<html>
+    <body>
+        <p>Test</p>
+    </body>
+</html>'''
+    }
+
     public static class Person {
         String name
     }

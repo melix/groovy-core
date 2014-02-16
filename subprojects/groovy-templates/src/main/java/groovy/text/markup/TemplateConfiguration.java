@@ -29,6 +29,7 @@ public class TemplateConfiguration {
     private boolean autoEscape = false;
     private boolean autoIndent = false;
     private String autoIndentString = DelegatingIndentWriter.SPACES;
+    private boolean autoNewLine = false;
 
     /**
      * @return the encoding used in the declaration header
@@ -118,5 +119,13 @@ public class TemplateConfiguration {
 
     public void setAutoIndentString(final String autoIndentString) {
         this.autoIndentString = autoIndentString;
+    }
+
+    public boolean isAutoNewLine() {
+        return autoNewLine;
+    }
+
+    public void setAutoNewLine(final boolean autoNewLine) {
+        this.autoNewLine = autoNewLine;
     }
 }
