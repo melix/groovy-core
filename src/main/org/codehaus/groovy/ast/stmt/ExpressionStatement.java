@@ -49,7 +49,7 @@ public class ExpressionStatement extends Statement {
     }
 
     public String getText() {
-        return expression.getText();
+        return this.toString();
     }
 
     public String toString() {
