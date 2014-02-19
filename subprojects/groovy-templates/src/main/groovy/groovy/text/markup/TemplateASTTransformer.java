@@ -55,7 +55,7 @@ class TemplateASTTransformer extends CompilationCustomizer {
     @Override
     public void call(final SourceUnit source, final GeneratorContext context, final ClassNode classNode) throws CompilationFailedException {
         if (classNode.isScriptBody()) {
-            classNode.setSuperClass(MarkupTemplateEngine.BASETEMPLATE_CLASSNODE);
+            classNode.setSuperClass(ClassHelper.make(config.getBaseTemplateClass()));
             createConstructor(classNode);
             transformRunMethod(classNode, source);
         }

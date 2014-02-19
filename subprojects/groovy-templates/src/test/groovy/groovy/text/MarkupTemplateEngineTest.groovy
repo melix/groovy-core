@@ -16,8 +16,10 @@
 
 package groovy.text
 
+import groovy.text.markup.BaseTemplate
 import groovy.text.markup.MarkupTemplateEngine
 import groovy.text.markup.TemplateConfiguration
+import groovy.transform.CompileStatic
 
 class MarkupTemplateEngineTest extends GroovyTestCase {
     void testSimpleTemplate() {
@@ -499,6 +501,19 @@ html {
         <p>Test</p>
     </body>
 </html>'''
+    }
+
+    void testCustomTemplateClass() {
+        TemplateConfiguration config = new TemplateConfiguration()
+        config.baseTemplateClass = CustomBaseTemplate
+        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader, config)
+        def template = engine.createTemplate '''p(getVersion())'''
+        StringWriter rendered = new StringWriter()
+        def tpl = template.make()
+        tpl.version = 'Template v1'
+        tpl.writeTo(rendered)
+        assert rendered.toString() == "<p>Template v1</p>"
+
     }
 
     public static class Person {

@@ -30,6 +30,7 @@ public class TemplateConfiguration {
     private boolean autoIndent = false;
     private String autoIndentString = DelegatingIndentWriter.SPACES;
     private boolean autoNewLine = false;
+    private Class<? extends BaseTemplate> baseTemplateClass = BaseTemplate.class;
 
     /**
      * @return the encoding used in the declaration header
@@ -127,5 +128,19 @@ public class TemplateConfiguration {
 
     public void setAutoNewLine(final boolean autoNewLine) {
         this.autoNewLine = autoNewLine;
+    }
+
+    public Class<? extends BaseTemplate> getBaseTemplateClass() {
+        return baseTemplateClass;
+    }
+
+    /**
+     * Set the template base class. You can use a distrinct template class to provide more
+     * statically available data to your templates.
+     *
+     * @param baseTemplateClass a class extending {@link groovy.text.markup.BaseTemplate}
+     */
+    public void setBaseTemplateClass(final Class<? extends BaseTemplate> baseTemplateClass) {
+        this.baseTemplateClass = baseTemplateClass;
     }
 }
