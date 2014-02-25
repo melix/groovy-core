@@ -529,6 +529,30 @@ yield "$name: $x"
         assert rendered.toString() == "Michel: 6"
     }
 
+    void testComment() {
+        TemplateConfiguration config = new TemplateConfiguration()
+        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader, config)
+        def template = engine.createTemplate '''comment " This is a $comment "
+'''
+        StringWriter rendered = new StringWriter()
+        def model = [comment: 'comment']
+        def tpl = template.make(model)
+        tpl.writeTo(rendered)
+        assert rendered.toString() == "<!-- This is a comment -->"
+    }
+
+    void testYieldUnescaped() {
+        TemplateConfiguration config = new TemplateConfiguration()
+        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader, config)
+        def template = engine.createTemplate '''yieldUnescaped html
+'''
+        StringWriter rendered = new StringWriter()
+        def model = [html: '<html></html>']
+        def tpl = template.make(model)
+        tpl.writeTo(rendered)
+        assert rendered.toString() == "<html></html>"
+    }
+
     public static class Person {
         String name
     }
