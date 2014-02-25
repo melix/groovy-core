@@ -17,20 +17,16 @@ package groovy.text.markup;
 
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.GroovyCodeSource;
-import groovy.lang.GroovyObject;
 import groovy.lang.Writable;
 import groovy.text.Template;
 import groovy.text.TemplateEngine;
 import groovy.transform.CompileStatic;
-import org.codehaus.groovy.antlr.AntlrParserPlugin;
 import org.codehaus.groovy.ast.ClassHelper;
 import org.codehaus.groovy.ast.ClassNode;
 import org.codehaus.groovy.classgen.GeneratorContext;
 import org.codehaus.groovy.control.CompilationFailedException;
 import org.codehaus.groovy.control.CompilePhase;
 import org.codehaus.groovy.control.CompilerConfiguration;
-import org.codehaus.groovy.control.ParserPlugin;
-import org.codehaus.groovy.control.ParserPluginFactory;
 import org.codehaus.groovy.control.SourceUnit;
 import org.codehaus.groovy.control.customizers.ASTTransformationCustomizer;
 import org.codehaus.groovy.control.customizers.CompilationCustomizer;
@@ -51,7 +47,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class MarkupTemplateEngine extends TemplateEngine {
 
-    final static ClassNode BASETEMPLATE_CLASSNODE = ClassHelper.make(BaseTemplate.class);
     final static ClassNode MARKUPTEMPLATEENGINE_CLASSNODE = ClassHelper.make(MarkupTemplateEngine.class);
 
     private final static AtomicLong counter = new AtomicLong();
@@ -84,24 +79,24 @@ public class MarkupTemplateEngine extends TemplateEngine {
     }
 
     public Template createTemplate(final Reader reader) throws CompilationFailedException, ClassNotFoundException, IOException {
-        return new StreamingMarkupBuilderTemplate(reader, null);
+        return new MarkupTemplateMaker(reader, null);
     }
 
     public Template createTypeCheckedModelTemplate(final String source, Map<String,String> modelTypes) throws CompilationFailedException, ClassNotFoundException, IOException {
-        return new StreamingMarkupBuilderTemplate(new StringReader(source), modelTypes);
+        return new MarkupTemplateMaker(new StringReader(source), modelTypes);
     }
 
     public Template createTypeCheckedModelTemplate(final Reader reader, Map<String,String> modelTypes) throws CompilationFailedException, ClassNotFoundException, IOException {
-        return new StreamingMarkupBuilderTemplate(reader, modelTypes);
+        return new MarkupTemplateMaker(reader, modelTypes);
     }
 
     @Override
     public Template createTemplate(final URL resource) throws CompilationFailedException, ClassNotFoundException, IOException {
-        return new StreamingMarkupBuilderTemplate(resource, null);
+        return new MarkupTemplateMaker(resource, null);
     }
 
     public Template createTemplate(final URL resource, Map<String,String> modelTypes) throws CompilationFailedException, ClassNotFoundException, IOException {
-        return new StreamingMarkupBuilderTemplate(resource, modelTypes);
+        return new MarkupTemplateMaker(resource, modelTypes);
     }
 
     public GroovyClassLoader getTemplateLoader() {
@@ -116,18 +111,22 @@ public class MarkupTemplateEngine extends TemplateEngine {
         return templateConfiguration;
     }
 
-    private class StreamingMarkupBuilderTemplate implements Template {
+    /**
+     * Implements the {@link groovy.text.Template} interface by caching a compiled template script
+     * and keeping a reference to the optional map of types of the model elements.
+     */
+    private class MarkupTemplateMaker implements Template {
         final Class<BaseTemplate> templateClass;
         final Map<String,String> modeltypes;
 
         @SuppressWarnings("unchecked")
-        public StreamingMarkupBuilderTemplate(final Reader reader, Map<String,String> modelTypes) {
+        public MarkupTemplateMaker(final Reader reader, Map<String, String> modelTypes) {
             templateClass = groovyClassLoader.parseClass(new GroovyCodeSource(reader, "GeneratedMarkupTemplate" + counter.getAndIncrement(), ""), modelTypes);
             this.modeltypes = modelTypes;
         }
 
         @SuppressWarnings("unchecked")
-        public StreamingMarkupBuilderTemplate(final URL resource, Map<String,String> modelTypes) throws IOException {
+        public MarkupTemplateMaker(final URL resource, Map<String, String> modelTypes) throws IOException {
             templateClass = groovyClassLoader.parseClass(new GroovyCodeSource(resource), modelTypes);
             this.modeltypes = modelTypes;
         }

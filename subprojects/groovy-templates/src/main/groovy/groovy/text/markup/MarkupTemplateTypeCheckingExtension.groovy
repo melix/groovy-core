@@ -50,6 +50,9 @@ class MarkupTemplateTypeCheckingExtension extends GroovyTypeCheckingExtensionSup
                 modelTypes.each { k, v ->
                     modelTypesClassNodes[k] = buildNodeFromString(v, context)
                 }
+            } else {
+                // push a new error collector, we want type checking errors to be silent
+                context.pushErrorCollector()
             }
         }
 

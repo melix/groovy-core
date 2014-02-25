@@ -516,6 +516,19 @@ html {
 
     }
 
+    void testShouldNotThrowTypeCheckingError() {
+        TemplateConfiguration config = new TemplateConfiguration()
+        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader, config)
+        def template = engine.createTemplate '''int x = name.length()
+yield "$name: $x"
+'''
+        StringWriter rendered = new StringWriter()
+        def model = [name: 'Michel']
+        def tpl = template.make(model)
+        tpl.writeTo(rendered)
+        assert rendered.toString() == "Michel: 6"
+    }
+
     public static class Person {
         String name
     }
