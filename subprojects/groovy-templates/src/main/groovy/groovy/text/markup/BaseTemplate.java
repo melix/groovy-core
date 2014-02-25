@@ -31,14 +31,14 @@ public abstract class BaseTemplate implements Writable {
     private final static Map EMPTY_MODEL = Collections.emptyMap();
 
     private final Map model;
-    private final Map modelTypes;
+    private final Map<String,String> modelTypes;
     private final MarkupTemplateEngine engine;
     private final TemplateConfiguration configuration;
 
     private Writer out;
     private boolean doWriteIndent;
 
-    public BaseTemplate(final MarkupTemplateEngine templateEngine, final Map model, final Map modelTypes, final TemplateConfiguration configuration) {
+    public BaseTemplate(final MarkupTemplateEngine templateEngine, final Map model, final Map<String,String> modelTypes, final TemplateConfiguration configuration) {
         this.model = model==null?EMPTY_MODEL:model;
         this.engine = templateEngine;
         this.configuration = configuration;
