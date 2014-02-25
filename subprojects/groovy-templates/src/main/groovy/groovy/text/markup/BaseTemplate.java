@@ -223,6 +223,10 @@ public abstract class BaseTemplate implements Writable {
         return contents;
     }
 
+    public Writer getOut() {
+        return out;
+    }
+
     public void newLine() throws IOException {
         yieldUnescaped(configuration.getNewLineString());
         doWriteIndent = true;

@@ -18,6 +18,7 @@ package groovy.text
 
 import groovy.text.markup.BaseTemplate
 import groovy.text.markup.MarkupTemplateEngine
+import groovy.text.markup.TagLibAdapter
 import groovy.text.markup.TemplateConfiguration
 import groovy.transform.CompileStatic
 
@@ -551,6 +552,26 @@ yield "$name: $x"
         def tpl = template.make(model)
         tpl.writeTo(rendered)
         assert rendered.toString() == "<html></html>"
+    }
+
+    void testGrailsTagLibCompatibility() {
+        TemplateConfiguration config = new TemplateConfiguration()
+        MarkupTemplateEngine engine = new MarkupTemplateEngine(this.class.classLoader, config)
+        def template = engine.createTemplate '''g.emoticon(happy:'true') { 'Hi John' }
+'''
+        StringWriter rendered = new StringWriter()
+        def model = [:]
+        def tpl = template.make(model)
+        model.g = new TagLibAdapter(tpl)
+        model.g.registerTagLib(SimpleTagLib)
+        tpl.writeTo(rendered)
+        assert rendered.toString() == "Hi John :-)"
+    }
+
+    class SimpleTagLib {
+        def emoticon = { attrs, body ->
+            out << body() << (attrs.happy == 'true' ? " :-)" : " :-(")
+        }
     }
 
     public static class Person {
