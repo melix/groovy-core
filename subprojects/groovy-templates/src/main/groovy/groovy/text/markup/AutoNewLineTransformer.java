@@ -32,7 +32,13 @@ import org.codehaus.groovy.control.SourceUnit;
 import java.util.Arrays;
 import java.util.List;
 
-public class AutoNewLineTransformer extends ClassCodeVisitorSupport {
+/**
+ * This transformer is responsible for adding calls to the <i>newLine</i> method
+ * depending on the layout of the source code, inside builder like blocks.
+ *
+ * @author Cedric Champeau
+ */
+class AutoNewLineTransformer extends ClassCodeVisitorSupport {
     private final SourceUnit unit;
     private boolean inBuilderMethod;
 

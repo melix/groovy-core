@@ -36,7 +36,14 @@ import java.util.concurrent.atomic.AtomicReference
 
 import static org.codehaus.groovy.ast.ClassHelper.OBJECT_TYPE
 
-
+/**
+ * <p>A static compilation type checking extension, responsible for transforming unresolved method
+ * calls into direct calls to {@link BaseTemplate#methodMissing(java.lang.String, java.lang.Object)}
+ * for faster rendering.</p>
+ * <p>This extension also supports optional type checking of the model</p>
+ *
+ * @author Cedric Champeau
+ */
 class MarkupTemplateTypeCheckingExtension extends GroovyTypeCheckingExtensionSupport.TypeCheckingDSL {
 
     @Override

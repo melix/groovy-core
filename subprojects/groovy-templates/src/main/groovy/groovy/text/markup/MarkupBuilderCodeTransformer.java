@@ -35,7 +35,22 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer {
+/**
+ * <p>This AST transformer is responsible for modifying a source template into something
+ * which can be compiled as a {@link groovy.text.markup.BaseTemplate} subclass.</p>
+ *
+ * <p>It performs the following operations:</p>
+ *
+ * <ul>
+ *     <li>replace dynamic variables with <i>getModel().get(dynamicVariable)</i> calls</li>
+ *     <li>optionally wrap <i>getModel().get(...)</i> calls into <i>tryEscape</i> calls for automatic escaping</li>
+ *     <li>replace <i>include XXX:'...'</i> calls with the appropriate <i>includeXXXX</i> method calls</li>
+ *     <li>replace <i>':tagName'()</i> calls into <i>methodMissing('tagName', ...)</i> calls</li>
+ * </ul>
+ *
+ * @author Cedric Champeau
+ */
+class MarkupBuilderCodeTransformer extends ClassCodeExpressionTransformer {
 
     private final SourceUnit unit;
     private final boolean autoEscape;

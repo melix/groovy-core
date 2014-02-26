@@ -153,7 +153,7 @@ html {
 '''
         StringWriter rendered = new StringWriter()
         template.make().writeTo(rendered)
-        assert rendered.toString() == '<?xml-stylesheet href=\'mystyle.css\' type=\'text/css\'?><html><body>Hello, PI!</body></html>'
+        assert rendered.toString() == '<?xml-stylesheet href=\'mystyle.css\' type=\'text/css\'?>\n<html><body>Hello, PI!</body></html>'
     }
 
     void testXmlDeclaration() {

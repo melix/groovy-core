@@ -42,6 +42,19 @@ import org.objectweb.asm.Opcodes;
 import java.util.LinkedList;
 import java.util.List;
 
+/**
+ * <p>An AST transformation which adapts the AST generated from a script as a class extending {@link groovy.text.markup.BaseTemplate}.</p>
+ *
+ * <p>This transformation:</p>
+ *
+ * <ul>
+ *     <li>Sets the super class of the script to the selected {@link TemplateConfiguration#getBaseTemplateClass() template class}</li>
+ *     <li>Calls the {@link groovy.text.markup.MarkupBuilderCodeTransformer} on the "run" method</li>
+ *     <li>Creates the appropriate constructor</li>
+ * </ul>
+ *
+ * @author Cedric Champeau
+ */
 class TemplateASTTransformer extends CompilationCustomizer {
 
     private static final ClassNode TEMPLATECONFIG_CLASSNODE = ClassHelper.make(TemplateConfiguration.class);
