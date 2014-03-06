@@ -570,8 +570,13 @@ public class WideningCategories {
         private final String name;
         private final String text;
 
+        private final ClassNode upper;
+        private final ClassNode[] interfaces;
+
         public LowestUpperBoundClassNode(String name, ClassNode upper, ClassNode... interfaces) {
             super(name, ACC_PUBLIC|ACC_FINAL, upper, interfaces, null);
+            this.upper = upper;
+            this.interfaces = interfaces;
             boolean usesGenerics;
             Arrays.sort(interfaces, CLASS_NODE_COMPARATOR);
             compileTimeClassNode = upper.equals(OBJECT_TYPE) && interfaces.length>0?interfaces[0]:upper;
@@ -633,6 +638,18 @@ public class WideningCategories {
         public String getText() {
             return text;
         }
+
+        @Override
+        public ClassNode getPlainNodeReference() {
+            ClassNode[] intf = interfaces==null?null:new ClassNode[interfaces.length];
+            if (intf!=null) {
+                for (int i = 0; i < interfaces.length; i++) {
+                    intf[i] = interfaces[i].getPlainNodeReference();
+                }
+            }
+            LowestUpperBoundClassNode plain = new LowestUpperBoundClassNode(name, upper.getPlainNodeReference(), intf);
+            return plain;
+        }
     }
 
     /**
@@ -673,5 +690,24 @@ public class WideningCategories {
             }
         }
         return true;
+    }
+    
+    /**
+     * Determines if the source class implements an interface or subclasses the target type.
+     * This method takes the {@link org.codehaus.groovy.ast.tools.WideningCategories.LowestUpperBoundClassNode lowest
+     * upper bound class node} type into account, allowing to remove unnecessary casts.
+     * @param source the type of interest
+     * @param targetType the target type of interest
+     */
+    public static boolean implementsInterfaceOrSubclassOf(final ClassNode source, final ClassNode targetType) {
+        if (source.isDerivedFrom(targetType) || source.implementsInterface(targetType)) return true;
+        if (targetType instanceof WideningCategories.LowestUpperBoundClassNode) {
+            WideningCategories.LowestUpperBoundClassNode lub = (WideningCategories.LowestUpperBoundClassNode) targetType;
+            if (implementsInterfaceOrSubclassOf(source, lub.getSuperClass())) return true;
+            for (ClassNode classNode : lub.getInterfaces()) {
+                if (source.implementsInterface(classNode)) return true;
+            }
+        }
+        return false;
     }
 }

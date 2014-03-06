@@ -2,14 +2,20 @@ package groovy.util.logging
 
 import java.lang.reflect.Field
 import java.lang.reflect.Modifier
+import static org.codehaus.groovy.control.CompilerConfiguration.DEFAULT as config
 
 class Log4j2Test extends GroovyTestCase {
 
     // Log4j2 requires at least Java 1.6
-    static final boolean javaVersionGreaterThan1_5 = true
+    static final boolean testEnabled = true
     static {
         if (System.getProperty("java.version").startsWith("1.5.")) {
-            javaVersionGreaterThan1_5 = false
+            testEnabled = false
+        }
+        if (System.getProperty('groovy.target.indy') && System.getProperty("java.version").startsWith("1.7.")) {
+            // temporarily disable tests for indy if running on JDK 7 because of a bug in Log4j2
+            // todo: re-enable when Log4J2 beta10 is out
+            testEnabled = false
         }
     }
 
@@ -19,7 +25,7 @@ class Log4j2Test extends GroovyTestCase {
 
     protected void setUp() {
         super.setUp()
-        if(javaVersionGreaterThan1_5) {
+        if(testEnabled) {
             appenderClazz = new GroovyClassLoader().parseClass('''
                 class Log4j2InterceptingAppender extends org.apache.logging.log4j.core.appender.AbstractAppender {
                     List<org.apache.log4j.spi.LoggingEvent> events
@@ -51,13 +57,13 @@ class Log4j2Test extends GroovyTestCase {
 
     protected void tearDown() {
         super.tearDown()
-        if(javaVersionGreaterThan1_5) {
+        if(testEnabled) {
             logger.removeAppender(appender)
         }
     }
 
     void testPrivateFinalStaticLogFieldAppears() {
-        if(javaVersionGreaterThan1_5) {
+        if(testEnabled && !config.optimizationOptions.indy) {
             Class clazz = new GroovyClassLoader().parseClass('''
               @groovy.util.logging.Log4j2
               class MyClass {
@@ -74,7 +80,7 @@ class Log4j2Test extends GroovyTestCase {
     }
 
     void testClassAlreadyHasLogField() {
-        if(javaVersionGreaterThan1_5) {
+        if(testEnabled && !config.optimizationOptions.indy) {
             shouldFail(RuntimeException) {
                 Class clazz = new GroovyClassLoader().parseClass('''
                 @groovy.util.logging.Log4j2()
@@ -88,7 +94,7 @@ class Log4j2Test extends GroovyTestCase {
     }
 
     void testClassAlreadyHasNamedLogField() {
-        if(javaVersionGreaterThan1_5) {
+        if(testEnabled && !config.optimizationOptions.indy) {
             shouldFail(RuntimeException) {
                 Class clazz = new GroovyClassLoader().parseClass('''
                 @groovy.util.logging.Log4j2('logger')
@@ -102,7 +108,7 @@ class Log4j2Test extends GroovyTestCase {
     }
 
     void testLogInfo() {
-        if(javaVersionGreaterThan1_5) {
+        if(testEnabled && !config.optimizationOptions.indy) {
             Class clazz = new GroovyClassLoader().parseClass('''
             @groovy.util.logging.Log4j2
             class MyClass {
@@ -140,7 +146,7 @@ class Log4j2Test extends GroovyTestCase {
     }
 
     void testLogFromStaticMethods() {
-        if(javaVersionGreaterThan1_5) {
+        if(testEnabled && !config.optimizationOptions.indy) {
             Class clazz = new GroovyClassLoader().parseClass("""
             @groovy.util.logging.Log4j2
             class MyClass {
@@ -161,7 +167,7 @@ class Log4j2Test extends GroovyTestCase {
     }
 
     void testLogInfoForNamedLogger() {
-        if(javaVersionGreaterThan1_5) {
+        if(testEnabled && !config.optimizationOptions.indy) {
             Class clazz = new GroovyClassLoader().parseClass('''
             @groovy.util.logging.Log4j2('logger')
             class MyClass {
@@ -199,7 +205,7 @@ class Log4j2Test extends GroovyTestCase {
     }
 
     void testLogGuard() {
-        if(javaVersionGreaterThan1_5) {
+        if(testEnabled && !config.optimizationOptions.indy) {
             Class clazz = new GroovyClassLoader().parseClass('''
             @groovy.util.logging.Log4j2
             class MyClass {
@@ -227,7 +233,7 @@ class Log4j2Test extends GroovyTestCase {
     }
     
     void testDefaultCategory() {
-        if(javaVersionGreaterThan1_5) {
+        if(testEnabled && !config.optimizationOptions.indy) {
             Class clazz = new GroovyClassLoader().parseClass("""
                 @groovy.util.logging.Log4j2
                 class MyClass {
@@ -244,7 +250,7 @@ class Log4j2Test extends GroovyTestCase {
     }
 
     public void testCustomCategory() {
-        if(javaVersionGreaterThan1_5) {
+        if(testEnabled && !config.optimizationOptions.indy) {
             def layoutClazz = new GroovyClassLoader().loadClass('org.apache.logging.log4j.core.layout.PatternLayout')
             def layout = layoutClazz.metaClass.invokeStaticMethod(layoutClazz, 'createLayout', ["%m", null, null, "UTF-8", "false"] as Object[])
             def appenderForCustomCategory = appenderClazz.newInstance(['Appender4CustomCategory', null, layout] as Object[])

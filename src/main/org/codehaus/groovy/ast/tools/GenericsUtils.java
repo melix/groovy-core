@@ -39,7 +39,9 @@ public class GenericsUtils {
      * @param parameterizedTypes the actual type arguments used on this class node
      * @param alignmentTarget the generic type arguments to which we want to align to
      * @return aligned type arguments
+     * @deprecated You shouldn't call this method because it is inherently unreliable
      */
+    @Deprecated
     public static GenericsType[] alignGenericTypes(final GenericsType[] redirectGenericTypes, final GenericsType[] parameterizedTypes, final GenericsType[] alignmentTarget) {
         if (alignmentTarget==null) return EMPTY_GENERICS_ARRAY;
         if (parameterizedTypes==null || parameterizedTypes.length==0) return alignmentTarget;
@@ -131,7 +133,24 @@ public class GenericsUtils {
             GenericsType redirectType = redirectGenericsTypes[i];
             if (redirectType.isPlaceholder()) {
                 String name = redirectType.getName();
-                if (!map.containsKey(name)) map.put(name, parameterized[i]);
+                if (!map.containsKey(name)) {
+                    GenericsType value = parameterized[i];
+                    map.put(name, value);
+                    if (value.isWildcard()) {
+                        ClassNode lowerBound = value.getLowerBound();
+                        if (lowerBound!=null) {
+                            extractPlaceholders(lowerBound, map);
+                        }
+                        ClassNode[] upperBounds = value.getUpperBounds();
+                        if (upperBounds!=null) {
+                            for (ClassNode upperBound : upperBounds) {
+                                extractPlaceholders(upperBound, map);
+                            }
+                        }
+                    } else if (!value.isPlaceholder()) {
+                        extractPlaceholders(value.getType(), map);
+                    }
+                }
             }
         }
     }
@@ -160,6 +179,9 @@ public class GenericsUtils {
      * @return a parameterized interface class node
      */
     public static ClassNode parameterizeType(final ClassNode hint, final ClassNode target) {
+        if (hint.isArray() && target.isArray()) {
+            return parameterizeType(hint.getComponentType(), target.getComponentType()).makeArray();
+        }
         ClassNode interfaceFromClassNode = null;
         if (hint.equals(target)) interfaceFromClassNode = hint;
         if (ClassHelper.OBJECT_TYPE.equals(target) && target.isUsingGenerics() && target.getGenericsTypes()!=null

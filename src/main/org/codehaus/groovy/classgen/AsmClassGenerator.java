@@ -655,7 +655,7 @@ public class AsmClassGenerator extends ClassGenerator {
         if (castExpression.isCoerce()) {
             controller.getOperandStack().doAsType(type);
         } else {
-            if (isNullConstant(subExpression)) {
+            if (isNullConstant(subExpression) && !ClassHelper.isPrimitiveType(type)) {
                 controller.getOperandStack().replace(type);
             } else {
                 controller.getOperandStack().doGroovyCast(type);
@@ -740,7 +740,7 @@ public class AsmClassGenerator extends ClassGenerator {
 
     private static String makeFieldClassName(ClassNode type) {
         String internalName = BytecodeHelper.getClassInternalName(type);
-        StringBuffer ret = new StringBuffer(internalName.length());
+        StringBuilder ret = new StringBuilder(internalName.length());
         for (int i = 0; i < internalName.length(); i++) {
             char c = internalName.charAt(i);
             if (c == '/') {
@@ -1444,12 +1444,8 @@ public class AsmClassGenerator extends ClassGenerator {
             if (elementExpression == null) {
                 ConstantExpression.NULL.visit(this);
             } else {
-                ClassNode type = controller.getTypeChooser().resolveType(elementExpression, controller.getClassNode());
-                if (!elementType.equals(type)) {
-                    visitCastExpression(new CastExpression(elementType, elementExpression, true));
-                } else {
-                    elementExpression.visit(this);
-                }
+                elementExpression.visit(this);
+                controller.getOperandStack().doGroovyCast(elementType);
             }
             mv.visitInsn(storeIns);
             controller.getOperandStack().remove(1);

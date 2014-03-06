@@ -999,7 +999,7 @@ public abstract class FactoryBuilderSupport extends Binding {
     /**
      * Removes the last context from the stack.
      *
-     * @return the contet just removed
+     * @return the content just removed
      */
     protected Map<String, Object> popContext() {
         if (!getProxyBuilder().getContexts().isEmpty()) {
@@ -1277,6 +1277,10 @@ public abstract class FactoryBuilderSupport extends Binding {
 
     public void addDisposalClosure(Closure closure) {
         disposalClosures.add(closure);
+    }
+
+    public List<Closure> getDisposalClosures() {
+        return Collections.unmodifiableList(disposalClosures);
     }
 
     public void dispose() {

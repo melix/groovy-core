@@ -2465,14 +2465,15 @@ pathElement[AST prefix] {Token operator = LT(1);}
         // The primary can then be followed by a chain of .id, (a), [a], and {...}
     :
         { #pathElement = prefix; }
-        (   // Spread operator:  x*.y  ===  x?.collect{it.y}
-            SPREAD_DOT!
-        |   // Optional-null operator:  x?.y  === (x==null)?null:x.y
-            OPTIONAL_DOT!
-        |   // Member pointer operator: foo.&y == foo.metaClass.getMethodPointer(foo, "y")
-            MEMBER_POINTER!
-        |   // The all-powerful dot.
-            (nls! DOT!)
+        ( nls!
+            ( SPREAD_DOT!     // Spread operator:  x*.y  ===  x?.collect{it.y}
+            |
+              OPTIONAL_DOT!   // Optional-null operator:  x?.y  === (x==null)?null:x.y
+            |
+              MEMBER_POINTER! // Member pointer operator: foo.&y == foo.metaClass.getMethodPointer(foo, "y")
+            |
+              DOT!            // The all-powerful dot.
+            )
         ) nls!
         (ta:typeArguments!)?
         np:namePart!
@@ -2512,13 +2513,13 @@ pathElement[AST prefix] {Token operator = LT(1);}
     ;
 
 pathElementStart!
-    :   (nls! DOT)
-    |   SPREAD_DOT
-    |   OPTIONAL_DOT
-    |   MEMBER_POINTER
-    |   LBRACK
-    |   LPAREN
-    |   LCURLY
+    :   (nls! ( DOT
+                |   SPREAD_DOT
+                |   OPTIONAL_DOT
+                |   MEMBER_POINTER ) )
+        |   LBRACK
+        |   LPAREN
+        |   LCURLY
     ;
 
 /** This is the grammar for what can follow a dot:  x.a, x.@a, x.&a, x.'a', etc.
@@ -2719,8 +2720,8 @@ assignmentExpression[int lc_stmt]
 conditionalExpression[int lc_stmt]
     :   logicalOrExpression[lc_stmt]
         (
-          (ELVIS_OPERATOR)=> ELVIS_OPERATOR^ nls! conditionalExpression[0]
-          | QUESTION^ nls! assignmentExpression[0] nls! COLON! nls! conditionalExpression[0]
+          (nls! ELVIS_OPERATOR)=> nls! ELVIS_OPERATOR^ nls! conditionalExpression[0]
+          | (nls! QUESTION)=> nls! QUESTION^ nls! assignmentExpression[0] nls! COLON! nls! conditionalExpression[0]
         )?
     ;
 

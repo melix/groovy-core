@@ -21,12 +21,8 @@ import jline.Terminal
 import jline.TerminalFactory
 import jline.console.history.FileHistory
 import org.codehaus.groovy.runtime.InvokerHelper
-import org.codehaus.groovy.tools.shell.util.PackageHelper
 import org.codehaus.groovy.runtime.StackTraceUtils
-import org.codehaus.groovy.tools.shell.util.CurlyCountingGroovyLexer
-import org.codehaus.groovy.tools.shell.util.MessageSource
-import org.codehaus.groovy.tools.shell.util.Preferences
-import org.codehaus.groovy.tools.shell.util.XmlCommandRegistrar
+import org.codehaus.groovy.tools.shell.util.*
 import org.fusesource.jansi.AnsiRenderer
 
 /**
@@ -48,6 +44,8 @@ class Groovysh extends Shell {
     final List<String> imports = []
 
     public static final String AUTOINDENT_PREFERENCE_KEY = "autoindent"
+    // after how many prefix characters we start displaying all metaclass methods
+    public static final String METACLASS_COMPLETION_PREFIX_LENGTH_PREFERENCE_KEY = "meta-completion-prefix-length"
     int indentSize = 2
     
     InteractiveShellRunner runner
@@ -66,7 +64,7 @@ class Groovysh extends Shell {
         assert registrar
 
         parser = new Parser()
-        
+
         interp = new Interpreter(classLoader, binding)
 
         registrar.call(this)
@@ -75,9 +73,15 @@ class Groovysh extends Shell {
     }
 
     private static Closure createDefaultRegistrar(final ClassLoader classLoader) {
-        return {Shell shell ->
-            def r = new XmlCommandRegistrar(shell, classLoader)
-            r.register(getClass().getResource('commands.xml'))
+
+        return {Groovysh shell ->
+            URL xmlCommandResource = getClass().getResource('commands.xml')
+            if (xmlCommandResource != null) {
+                def r = new XmlCommandRegistrar(shell, classLoader)
+                r.register(xmlCommandResource)
+            } else {
+                new DefaultCommandsRegistrar(shell).register()
+            }
         }
     }
 
@@ -134,8 +138,10 @@ class Groovysh extends Shell {
         // Append the line to the current buffer
         current << line
 
+        String importsSpec = this.getImportStatements()
+
         // Attempt to parse the current buffer
-        def status = parser.parse(imports + current)
+        def status = parser.parse([importsSpec] + current)
 
         switch (status.code) {
             case ParseCode.COMPLETE:
@@ -146,7 +152,7 @@ class Groovysh extends Shell {
                 }
 
                 // Evaluate the current buffer w/imports and dummy statement
-                List buff = imports + [ 'true' ] + current
+                List buff = [importsSpec] + [ 'true' ] + current
 
                 setLastResult(result = interp.evaluate(buff))
                 buffers.clearSelected()
@@ -183,6 +189,10 @@ class Groovysh extends Shell {
             
             io.out.println(" ${lineNum}@|bold >|@ $line")
         }
+    }
+
+    String getImportStatements() {
+        return this.imports.collect({String it -> "import $it;"}).join('')
     }
 
     //
@@ -473,7 +483,10 @@ class Groovysh extends Shell {
                 loadUserScript('groovysh.rc')
 
                 // Setup the interactive runner
-                runner = new InteractiveShellRunner(this, this.&renderPrompt as Closure)
+                runner = new InteractiveShellRunner(
+                        this,
+                        this.&renderPrompt as Closure,
+                        Integer.valueOf(Preferences.get(METACLASS_COMPLETION_PREFIX_LENGTH_PREFERENCE_KEY, '3')))
 
                 // Setup the history
                 File histFile = new File(userStateDirectory, 'groovysh.history')

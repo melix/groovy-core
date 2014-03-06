@@ -20,6 +20,7 @@ import org.codehaus.groovy.tools.shell.CommandSupport
 import org.codehaus.groovy.tools.shell.Command
 import org.codehaus.groovy.tools.shell.Groovysh
 import org.codehaus.groovy.tools.shell.CommandRegistry
+import org.codehaus.groovy.tools.shell.completion.CommandNameCompleter
 import org.codehaus.groovy.tools.shell.util.SimpleCompletor
 
 /**
@@ -32,14 +33,14 @@ class HelpCommand
     extends CommandSupport
 {
     HelpCommand(final Groovysh shell) {
-        super(shell, 'help', '\\h')
+        super(shell, ':help', ':h')
 
-        alias('?', '\\?')
+        alias('?', ':?')
     }
 
     protected List createCompleters() {
         return [
-            new HelpCommandCompletor(registry),
+            new CommandNameCompleter(registry),
             null
         ]
     }
@@ -120,40 +121,8 @@ class HelpCommand
         
         io.out.println()
         io.out.println('For help on a specific command type:') // TODO: i18n
-        io.out.println('    help @|bold command|@ ')
+        io.out.println('    :help @|bold command|@ ')
         io.out.println()
     }
 }
 
-/**
- * Completor for the 'help' command.
- *
- * @version $Id$
- * @author <a href="mailto:jason@planet57.com">Jason Dillon</a>
- */
-class HelpCommandCompletor
-    extends SimpleCompletor
-{
-    private final CommandRegistry registry
-
-    HelpCommandCompletor(final CommandRegistry registry) {
-        assert registry
-
-        this.registry = registry
-    }
-
-    SortedSet getCandidates() {
-        def set = new TreeSet()
-
-        for (Command command in registry.commands()) {
-            if (command.hidden) {
-                continue
-            }
-            
-            set << command.name
-            set << command.shortcut
-        }
-
-        return set
-    }
-}

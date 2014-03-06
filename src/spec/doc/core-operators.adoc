@@ -1,47 +1,170 @@
 = Operators
-:toc:
-:icons:
-:linkcss!:
 
 This chapter covers the operators of the Groovy programming language.
 
 == Arithmetic operators
 
-== Bitwise and logical operators
+Groovy supports the usual familiar arithmetic operators you find in mathematics and in other programming languages like Java.
+All the Java arithmetic operators are supported. Let's go through them in the following examples.
 
-== Conditional operators
+=== Normal arithmetic operators
 
-=== Not operator
-=== Ternary operator
-=== Elvis operator
+The following binary arithmetic operators are available in Groovy:
 
-== Object operators
+[cols="1,1,1" options="header"]
+|====
+| Operator
+| Purpose
+| Remarks
 
-=== Safe navigation operator
-=== Direct field access operator
-=== Method reference operator
+| +++
+| addition
+|
 
-== Regular expression operators
+| +-+
+| substraction
+|
 
-=== Pattern operator
-=== Find operator
-=== Match operator
+| +*+
+| multiplication
+|
 
-== Other operators
+| +/+
+| division
+| Use +intdiv()+ for integer division, and see the section about <<core-syntax.adoc#integer_division,the integer division>> for more information on the return type of the division.
 
-=== Spread operator
-==== Spreading method arguments
-==== Spread list elements
-==== Spread map elements
-=== Range operator
-=== Spaceship operator
-=== Subscript operator
-=== Membership operator
-=== Identity operator
-=== Coercion operator
-=== Diamond operator
-=== Call operator
+| +%+
+| modulo
+|
 
-== Operator precedence
+| +**+
+| power
+| See the section about <<core-syntax.adoc#power_operator,the power operation>> for more information on the return type of the operation.
+|====
 
-== Operator overloading
+Here are a few examples of usage of those operators:
+
+[source,groovy]
+----
+include::{projectdir}/src/spec/test/OperatorsTest.groovy[tags=binary_arith_ops,indent=0]
+----
+
+=== Unary operators
+
+The +++ and +-+ operators are also available as unary operators:
+
+[source,groovy]
+----
+include::{projectdir}/src/spec/test/OperatorsTest.groovy[tags=unary_plus_minus,indent=0]
+----
+<1> Note the usage of parentheses to surround an expression to apply the unary minus to that surrounded expression.
+
+In terms of unary arithmetics operators, the ++++ (increment) and +--+ (decrement) operators are available, 
+both in prefix and postfix notation:
+
+[source,groovy]
+----
+include::{projectdir}/src/spec/test/OperatorsTest.groovy[tags=plusplus_minusminus,indent=0]
+----
+<1> The postfix increment will increment +a+ after the expression has been evaluated and assigned into +b+
+<2> The postfix decrement will decrement +c+ after the expression has been evaluated and assigned into +d+
+<3> The prefix increment will increment +e+ before the expression is evaluated and assigned into +f+
+<4> The prefix decrement will decrement +g+ before the expression is evaluated and assigned into +h+
+
+=== Assignment arithmetic operators
+
+From the binary arithmetic operators we have seen above, certain of them are also available in an assignment form:
+
+* ++=+
+* +-=+
+* +*=+
+* +/=+
+* +%=+
+
+Let's see them in action:
+
+[source,groovy]
+----
+include::{projectdir}/src/spec/test/OperatorsTest.groovy[tags=binary_assign_operators,indent=0]
+----
+
+== Relational operators
+
+Relational operators allow comparisons between objects, to know if two objects are the same or different,
+or if one is greater or lower than or equal to the other.
+
+The following operators are available:
+
+[cols="1,1" options="header"]
+|====
+| Operator
+| Purpose
+
+| +==+
+| equal
+
+| +!=+
+| different
+
+| +<+
+| less than
+
+| `<=`
+| less than or equal
+
+| +>+
+| greater than
+
+| +>=+
+| greater than or equal
+|====
+
+These operators into action in simple number comparisons:
+
+[source,groovy]
+----
+include::{projectdir}/src/spec/test/OperatorsTest.groovy[tags=simple_relational_op,indent=0]
+----
+
+
+
+== Logical operators (TBD)
+
+== Bitwise operators (TBD)
+
+== Conditional operators (TBD)
+
+=== Not operator (TBD)
+=== Ternary operator (TBD)
+=== Elvis operator (TBD)
+
+== Object operators (TBD)
+
+=== Safe navigation operator (TBD)
+=== Direct field access operator (TBD)
+=== Method reference operator (TBD)
+
+== Regular expression operators (TBD)
+
+=== Pattern operator (TBD)
+=== Find operator (TBD)
+=== Match operator (TBD)
+
+== Other operators (TBD)
+
+=== Spread operator (TBD)
+==== Spreading method arguments (TBD)
+==== Spread list elements (TBD)
+==== Spread map elements (TBD)
+=== Range operator (TBD)
+=== Spaceship operator (TBD)
+=== Subscript operator (TBD)
+=== Membership operator (TBD)
+=== Identity operator (TBD)
+=== Coercion operator (TBD)
+=== Diamond operator (TBD)
+=== Call operator (TBD)
+
+== Operator precedence (TBD)
+
+== Operator overloading (TBD)

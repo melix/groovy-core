@@ -17,8 +17,11 @@
 package org.codehaus.groovy.tools.shell.commands
 
 import org.codehaus.groovy.tools.shell.Command
+import org.codehaus.groovy.tools.shell.CommandRegistry
 import org.codehaus.groovy.tools.shell.CommandSupport
 import org.codehaus.groovy.tools.shell.Groovysh
+import org.codehaus.groovy.tools.shell.completion.CommandNameCompleter
+import org.codehaus.groovy.tools.shell.util.SimpleCompletor
 
 /**
  * The 'alias' command.
@@ -30,7 +33,14 @@ class AliasCommand
     extends CommandSupport
 {
     AliasCommand(final Groovysh shell) {
-        super(shell, 'alias', '\\a')
+        super(shell, ':alias', ':a', )
+    }
+
+    protected List createCompleters() {
+        return [
+                new CommandNameCompleter(registry),
+                null
+        ]
     }
 
     Object execute(final List args) {
@@ -44,8 +54,11 @@ class AliasCommand
         List target = args[1..-1]
         
         Command command = registry.find(name)
-        
-        if (command) {
+
+        if (command == null) {
+            command = registry.find(name)
+        }
+        if (command != null) {
             if (command instanceof AliasTargetProxyCommand) {
                 log.debug("Rebinding alias: $name")
                 
@@ -80,7 +93,7 @@ class AliasTargetProxyCommand
     final List args
     
     AliasTargetProxyCommand(final Groovysh shell, final String name, final List args) {
-        super(shell, name, '\\a' + counter++)
+        super(shell, name, ':a' + counter++)
         
         assert args
         
