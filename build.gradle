@@ -37,6 +37,11 @@ allprojects {
     group = 'org.codehaus.groovy'
     version = groovyVersion
     repositories {
+        // todo: remove this when ASM 5.0.3 is released!
+        ivy {
+            url file("${rootProject.projectDir}/lib").toURI()
+            layout "maven"
+        }
         jcenter()
     }
 
@@ -97,7 +102,7 @@ configurations {
 
 ext {
     antVersion = '1.9.4'
-    asmVersion = '5.0.2'
+    asmVersion = '5.0.3-groovy'
     antlrVersion = '2.7.7'
     bndVersion = '0.0.401'
     checkstyleVersion = '4.4'

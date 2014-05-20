@@ -168,13 +168,6 @@ public class AsmClassGenerator extends ClassGenerator {
                 visitAnnotations(classNode, cv);
             }
 
-            // GROOVY-6750: Make sure the inner class table is called first
-            for (Iterator<InnerClassNode> iter = classNode.getInnerClasses(); iter.hasNext();) {
-                InnerClassNode innerClass = iter.next();
-                makeInnerClassEntry(innerClass);
-            }
-            makeInnerClassEntry(classNode);
-
             if (classNode.isInterface()) {
                 ClassNode owner = classNode;
                 if (owner instanceof InnerClassNode) {
@@ -195,6 +188,14 @@ public class AsmClassGenerator extends ClassGenerator {
                 controller.getCallSiteWriter().generateCallSiteArray();
                 createSyntheticStaticFields();
             }
+
+            // GROOVY-6750, after ASM 5.0.3.
+            // DO NOT MOVE THIS UNLESS YOU REALLY KNOW WHAT YOU DO
+            for (Iterator<InnerClassNode> iter = classNode.getInnerClasses(); iter.hasNext();) {
+                InnerClassNode innerClass = iter.next();
+                makeInnerClassEntry(innerClass);
+            }
+            makeInnerClassEntry(classNode);
 
             cv.visitEnd();
         } catch (GroovyRuntimeException e) {

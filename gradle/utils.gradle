@@ -24,6 +24,11 @@ import static org.objectweb.asm.Opcodes.*
 
 buildscript {
     repositories {
+        // todo: remove this when ASM 5.0.3 is released!
+        ivy {
+            url file('lib').toURI()
+            layout "maven"
+        }
         mavenCentral()
     }
     dependencies {
