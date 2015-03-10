@@ -151,21 +151,8 @@ public class DefaultGroovyMethods extends DefaultGroovyMethodsSupport {
             DoubleArrayPutAtMetaMethod.class,
     };
 
-    public static final Class[] DGM_LIKE_CLASSES = new Class[]{
-            DefaultGroovyMethods.class,
-            DateGroovyMethods.class,
-            EncodingGroovyMethods.class,
-            IOGroovyMethods.class,
-            ProcessGroovyMethods.class,
-            ResourceGroovyMethods.class,
-            SocketGroovyMethods.class,
-            StringGroovyMethods.class//,
-            // TODO provide alternative way for these to be registered
-//            SqlGroovyMethods.class,
-//            SwingGroovyMethods.class,
-//            XmlGroovyMethods.class,
-//            NioGroovyMethods.class
-    };
+    public static final Class[] DGM_LIKE_CLASSES = new Class[0];
+
     private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
 
     /**

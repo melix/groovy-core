@@ -332,27 +332,6 @@ ext.modules = {
     subprojects
 }
 
-task dgmConverter(dependsOn:compileJava) {
-    description = 'Generates DGM info file required for faster startup.'
-    def classesDir = sourceSets.main.output.classesDir
-    def classpath = files(classesDir, configurations.compile).asPath
-
-    //main = 'org.codehaus.groovy.tools.DgmConverter'
-    //args = ['--info', classesDir.absolutePath]
-    doFirst {
-        file("$classesDir/META-INF").mkdirs()
-        // we use ant.java because Gradle is a bit "too smart" with JavaExec
-        // as it will invalidate the task if classpath changes, which will
-        // happen once Groovy files are compiled
-        ant.java(classname:'org.codehaus.groovy.tools.DgmConverter', classpath: classpath) {
-            arg(value: '--info')
-            arg(value: classesDir.absolutePath)
-        }
-    }
-    inputs.files fileTree('src').include('**/*GroovyMethods.java')
-    outputs.file file("${classesDir}/META-INF/dgminfo")
-}
-
 compileJava {
     dependsOn ensureGrammars, exceptionUtils
     options.fork(memoryMaximumSize: javacMain_mx)
@@ -362,7 +341,7 @@ compileJava {
     // on classpath. This "bootstrap jar" contains the minimal compiler, without .groovy compiled files
 
 task bootstrapJar {
-    dependsOn compileJava, dgmConverter
+    dependsOn compileJava
 
     def destinationDir = file("$buildDir/bootstrap")
     def archiveName = "groovy-${version}-bootstrap.jar"
@@ -383,7 +362,22 @@ task bootstrapJar {
     outputs.file archivePath
 }
 
-compileGroovy.dependsOn bootstrapJar
+task moduleDescriptor(type: org.codehaus.groovy.gradle.WriteExtensionDescriptorTask) {
+    extensionClasses = [
+            'DefaultGroovyMethods',
+            'DateGroovyMethods',
+            'EncodingGroovyMethods',
+            'IOGroovyMethods',
+            'ProcessGroovyMethods',
+            'ResourceGroovyMethods',
+            'SocketGroovyMethods',
+            'StringGroovyMethods'
+    ]
+            .collect {"org.codehaus.groovy.runtime.$it"}.join(',')
+}
+
+bootstrapJar.dependsOn(moduleDescriptor)
+compileGroovy.dependsOn(bootstrapJar)
 
 allprojects {
 

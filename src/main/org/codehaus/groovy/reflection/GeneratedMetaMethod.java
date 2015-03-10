@@ -159,6 +159,7 @@ public abstract class GeneratedMetaMethod extends MetaMethod {
             out.close();
         }
 
+        @Deprecated
         public static List<DgmMethodRecord> loadDgmInfo() throws IOException, ClassNotFoundException {
 
             ClassLoader loader = DgmMethodRecord.class.getClassLoader();

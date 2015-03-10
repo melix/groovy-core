@@ -115,7 +115,6 @@ ext.subprojectOsgiManifest = {
 }
 
 jar {
-    dependsOn('dgmConverter')
     metaInf {
         from 'LICENSE.txt'
         from('src/main/META-INF/groovy-release-info.properties') {
@@ -258,7 +257,7 @@ def mergeModuleDescriptors() {
     def extensionClasses = []
     def staticExtensionClasses = []
 
-    modules().collect {
+    allprojects.collect {
         new File("${it.buildDir}/classes/main/META-INF/services/org.codehaus.groovy.runtime.ExtensionModule")
     }.findAll { it.exists() }.each {
         def props = new Properties()
@@ -323,9 +322,9 @@ task jarAll(type: Jar, dependsOn: replaceJarWithJarJar) {
             taskdef name: 'jarjar', classname: 'com.tonicsystems.jarjar.JarJarTask', classpath: configurations.tools.asPath
             jarjar(jarfile: archivePathTmp, manifest: "$owner.ext.metaInfDir/MANIFEST.MF") {
                 zipfileset(dir: "$owner.ext.metaInfDir", prefix: 'META-INF', excludes: 'META-INF')
-                zipfileset(src: jar.archivePath)
+                zipfileset(src: jar.archivePath, excludes:'**/org.codehaus.groovy.runtime.ExtensionModule')
                 moduleJars().each {
-                    zipfileset(src: it)
+                    zipfileset(src: it, excludes:'**/org.codehaus.groovy.runtime.ExtensionModule')
                 }
             }
         }

@@ -90,7 +90,6 @@ public class MetaClassRegistryImpl implements MetaClassRegistry{
             final Map<CachedClass, List<MetaMethod>> map = new HashMap<CachedClass, List<MetaMethod>>();
 
             // let's register the default methods
-            registerMethods(null, true, true, map);
             final Class[] additionals = DefaultGroovyMethods.additionals;
             for (int i = 0; i != additionals.length; ++i) {
                 createMetaMethodFromClass(map, additionals[i]);
@@ -98,12 +97,12 @@ public class MetaClassRegistryImpl implements MetaClassRegistry{
 
             Class[] pluginDGMs = VMPluginFactory.getPlugin().getPluginDefaultGroovyMethods();
             for (Class plugin : pluginDGMs) {
-                registerMethods(plugin, false, true, map);
+                registerMethods(plugin, true, map);
             }
-            registerMethods(DefaultGroovyStaticMethods.class, false, false, map);
+            registerMethods(DefaultGroovyStaticMethods.class, false, map);
             Class[] staticPluginDGMs = VMPluginFactory.getPlugin().getPluginStaticGroovyMethods();
             for (Class plugin : staticPluginDGMs) {
-                registerMethods(plugin, false, false, map);
+                registerMethods(plugin, false, map);
             }
 
             ExtensionModuleScanner scanner = new ExtensionModuleScanner(new DefaultModuleListener(map), this.getClass().getClassLoader());
@@ -173,66 +172,34 @@ public class MetaClassRegistryImpl implements MetaClassRegistry{
                throw new GroovyRuntimeException("Could not instantiate custom Metaclass creation handle: "+ e, e);
            }
     }
-    
-    private void registerMethods(final Class theClass, final boolean useMethodWrapper, final boolean useInstanceMethods, Map<CachedClass, List<MetaMethod>> map) {
-        if (useMethodWrapper) {
-            // Here we instantiate objects representing MetaMethods for DGM methods.
-            // Calls for such meta methods done without reflection, so more effectively.
 
-            try {
-                List<GeneratedMetaMethod.DgmMethodRecord> records = GeneratedMetaMethod.DgmMethodRecord.loadDgmInfo();
+    private void registerMethods(final Class theClass, final boolean useInstanceMethods, Map<CachedClass, List<MetaMethod>> map) {
 
-                for (GeneratedMetaMethod.DgmMethodRecord record : records) {
-                    Class[] newParams = new Class[record.parameters.length - 1];
-                    System.arraycopy(record.parameters, 1, newParams, 0, record.parameters.length-1);
+        CachedMethod[] methods = ReflectionCache.getCachedClass(theClass).getMethods();
 
-                    MetaMethod method = new GeneratedMetaMethod.Proxy(
-                            record.className,
-                            record.methodName,
-                            ReflectionCache.getCachedClass(record.parameters[0]),
-                            record.returnType,
-                            newParams
-                    );
-                    final CachedClass declClass = method.getDeclaringClass();
-                    List<MetaMethod> arr = map.get(declClass);
+        for (CachedMethod method : methods) {
+            final int mod = method.getModifiers();
+            if (Modifier.isStatic(mod) && Modifier.isPublic(mod) && method.getCachedMethod().getAnnotation(Deprecated.class) == null) {
+                CachedClass[] paramTypes = method.getParameterTypes();
+                if (paramTypes.length > 0) {
+                    List<MetaMethod> arr = map.get(paramTypes[0]);
                     if (arr == null) {
                         arr = new ArrayList<MetaMethod>(4);
-                        map.put(declClass, arr);
+                        map.put(paramTypes[0], arr);
                     }
-                    arr.add(method);
-                    instanceMethods.add(method);
-                }
-            } catch (Throwable e) {
-                e.printStackTrace();
-                // we print the error, but we don't stop with an exception here
-                // since it is more comfortable this way for development
-            }
-        } else {
-            CachedMethod[] methods = ReflectionCache.getCachedClass(theClass).getMethods();
-
-            for (CachedMethod method : methods) {
-                final int mod = method.getModifiers();
-                if (Modifier.isStatic(mod) && Modifier.isPublic(mod) && method.getCachedMethod().getAnnotation(Deprecated.class) == null) {
-                    CachedClass[] paramTypes = method.getParameterTypes();
-                    if (paramTypes.length > 0) {
-                        List<MetaMethod> arr = map.get(paramTypes[0]);
-                        if (arr == null) {
-                            arr = new ArrayList<MetaMethod>(4);
-                            map.put(paramTypes[0], arr);
-                        }
-                        if (useInstanceMethods) {
-                            final NewInstanceMetaMethod metaMethod = new NewInstanceMetaMethod(method);
-                            arr.add(metaMethod);
-                            instanceMethods.add(metaMethod);
-                        } else {
-                            final NewStaticMetaMethod metaMethod = new NewStaticMetaMethod(method);
-                            arr.add(metaMethod);
-                            staticMethods.add(metaMethod);
-                        }
+                    if (useInstanceMethods) {
+                        final NewInstanceMetaMethod metaMethod = new NewInstanceMetaMethod(method);
+                        arr.add(metaMethod);
+                        instanceMethods.add(metaMethod);
+                    } else {
+                        final NewStaticMetaMethod metaMethod = new NewStaticMetaMethod(method);
+                        arr.add(metaMethod);
+                        staticMethods.add(metaMethod);
                     }
                 }
             }
         }
+
     }
 
     private void createMetaMethodFromClass(Map<CachedClass, List<MetaMethod>> map, Class aClass) {
